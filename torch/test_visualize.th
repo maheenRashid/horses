@@ -1,0 +1,24 @@
+require 'image'
+require 'visualize';
+npy4th=require 'npy4th';
+
+im_path='/home/SSD3/maheen-data/horse_project/horse_resize/im/_04_Aug16_png/horse+head233.jpg';
+npy_path='/home/SSD3/maheen-data/horse_project/horse_resize/npy/_04_Aug16_png/horse+head233.npy';
+out_file='/home/SSD3/maheen-data/temp/check.png';
+
+im=image.load(im_path);
+keypoints=npy4th.loadnpy(npy_path);
+print (im:size(),torch.min(im),torch.max(im));
+print (keypoints:size());
+keypoints=keypoints[{{},{1,2}}]:t();
+print (keypoints);
+
+colors={{255,0,0},{255,255,0},{0,0,255},{0,255,0},{255,0,255}}
+
+-- keypoints[{2,{}}]=keypoints[{2,{}}]+im:size(2)-torch.max(keypoints[{2,{}}])-1;
+
+visualizer=Visualize()
+im=visualizer:drawKeyPoints(im,keypoints,nil,colors)
+image.save(out_file,im);
+
+

@@ -1,0 +1,159 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_horseHuman_xiuye';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+visualize = require 'visualize';
+tps_helper= require 'tps_helper';
+
+function setUpNets(net_file,num_ctrl_pts,size_out)
+	local locnet = torch.load(net_file);
+    local tranet=nn.Transpose({2,3},{3,4})
+    local concat=nn.ConcatTable()
+    concat:add(tranet)
+	concat:add(locnet)
+
+	local net=nn.Sequential();
+	net:add(concat)
+	net:add(nn.BilinearSamplerBHWD())
+	net:add(nn.Transpose({3,4},{2,3}))
+
+	
+    local gt_net=nn.Sequential();
+    local parnet=nn.ParallelTable();
+    
+    parnet:add(tranet:clone());
+    parnet:add(nn.Identity());
+    gt_net:add(parnet);
+    gt_net:add(nn.BilinearSamplerBHWD());
+    gt_net:add(nn.Transpose({3,4},{2,3}));
+    
+
+    local tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
+    return net,gt_net,tps;
+
+end
+
+
+
+function visualizeResults(params)
+	print (params);
+	local horse_path=params.horse_path;
+	local human_path=params.human_path;
+	local out_dir=params.outDir
+	paths.mkdir(out_dir);
+    local net_file=params.model
+    local size_out=params.size_out;
+    local num_ctrl_pts=params.num_ctrl_pts;
+    local max_iter=params.iterations;
+    print ('setting up nets');
+    local net,gt_net,tps = setUpNets(net_file,num_ctrl_pts,size_out);
+    local colors={{255,0,0}}
+    -- ,{255,255,0},{0,0,255},{0,255,0},{255,0,255}};
+    print ('making cuda');
+    gt_net=gt_net:cuda();
+    tps=tps:cuda();
+    net = net:cuda();
+    print ('done');
+    net:evaluate();
+
+    if params.limit<0 then
+    	td=data({file_path_horse=horse_path,file_path_human=human_path,augmentation=params.augmentation,humanImage=params.humanImage});
+    else
+    	td=data({file_path_horse=horse_path,file_path_human=human_path,limit=params.limit,augmentation=params.augmentation,humanImage=params.humanImage});
+    end
+    td.params.input_size={size_out,size_out};
+    td.batch_size=params.batchSize;
+	
+
+	local visualizer=Visualize();
+	local tps_helper=TPS_Helper();
+
+	for batch_no=1,max_iter do
+		local file_pre=paths.concat(out_dir,''..batch_no..'_');
+		print ('batch_no ',batch_no);
+	    td:getTrainingData();
+	    td.training_set_horse.data=td.training_set_horse.data:cuda();
+	    td.training_set_horse.label=td.training_set_horse.label:cuda();
+	    td.training_set_human.label=td.training_set_human.label:cuda();
+
+	    local horse_labels,human_labels,horse_data,human_data=td:getBatchPoints();
+	    local gt_output=tps:getGTOutput(human_labels,horse_labels);    
+
+		local warped_im_pred=net:forward(horse_data:clone());
+		local pred_output=net:get(1):get(2).output;
+
+		local loss = tps_helper:getLoss(gt_output,pred_output,true);
+	    local loss_file=file_pre..'loss.npy';
+	    npy4th.savenpy(loss_file,loss:double());
+
+	    -- local loss_str=string.format('%6.4f',loss[1][1]);
+	    local warped_im_gt=gt_net:forward{horse_data:clone(),gt_output};
+		local warped_pts_gt=tps_helper:getTransformedLandMarkPoints(horse_labels,gt_output,true)
+		-- warped_pts_gt=warped_pts_gt[{{},{},{1,2}}]:transpose(2,3);
+		local file_info={file_pre,'_gtwarp.jpg'};
+		visualizer:saveBatchImagesWithKeypoints(warped_im_gt:double(),warped_pts_gt,file_info,td.params.mean,nil,colors);
+
+		-- print (horse_labels[1]:size(),td.training_set_horse.label:size())
+		-- print (human_labels[3]:size(),td.training_set_horse.label:size())
+		local warped_pts_pred=tps_helper:getTransformedLandMarkPoints(horse_labels,pred_output,true);
+		-- for i=1,#warped_pts_pred do
+		-- 	print ('warped_pts_pred[i]',warped_pts_pred[i])
+		-- end
+		-- warped_pts_pred=warped_pts_pred[{{},{},{1,2}}]:transpose(2,3);
+		file_info={file_pre,'_predwarp.jpg'};
+		visualizer:saveBatchImagesWithKeypoints(warped_im_pred:double(),warped_pts_pred,file_info,td.params.mean,nil,colors);
+
+		-- local horse_pts=horse_labels[{{},{},{1,2}}]:transpose(2,3)
+		file_info={file_pre,'_horse.jpg'};
+		-- visualizer:saveBatchImagesWithKeypoints(horse_data:double(),horse_pts:double(),file_info,td.params.mean,{-1,1},colors);
+		visualizer:saveBatchImagesWithKeypoints(horse_data:double(),horse_labels,file_info,td.params.mean,{-1,1},colors);
+
+		file_info={file_pre,'_human.jpg'};
+		visualizer:saveBatchImagesWithKeypoints(human_data:double(),human_labels,file_info,td.params.mean,{-1,1},colors);
+	end
+	
+end
+
+
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text('Test TPS network')
+cmd:text()
+cmd:text('Options')
+cmd:option('-outDir','/home/SSD3/maheen-data/temp/tps_debug_problem/test_viz_allBad','directory to write output');
+cmd:option('-num_ctrl_pts',36,'num of training data to read');
+cmd:option('-limit',-1,'num of training data to read');
+cmd:option('-size_out',224,'num of training data to read');
+cmd:option('-batchSize',68,'batch size');
+-- cmd:option('-horse_path','/home/SSD3/maheen-data/horse_project/horse_resize/matches_5_train_fiveKP.txt');
+-- cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/aflw/matches_5_train_fiveKP_noIm.txt');
+cmd:option('-iterations',1,'iterations');
+cmd:option('humanImage' , true);
+cmd:option('augmentation' , false);
+-- cmd:option('-model','/home/SSD3/maheen-data/horse_human_fiveKP_tps_adam/final/model_all_final.dat','model to load')
+-- cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/aflw/matches_5_train_fiveKP.txt');
+
+-- cmd:option('-horse_path','/home/SSD3/maheen-data/horse_project/data_resize/horse/matches_5_train_allKP_dummy.txt');
+-- cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/data_resize/aflw/matches_5_train_allKP_dummy.txt');
+-- cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_train_allKP_adam/final/model_all_final.dat','model to load');
+
+-- cmd:option('-horse_path','/home/SSD3/maheen-data/horse_project/data_resize/horse/matches_5_val_allKP.txt');
+-- cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/data_resize/aflw/matches_5_val_allKP.txt');
+
+cmd:option('-horse_path','/home/SSD3/maheen-data/horse_project/data_resize/horse/matches_5_train_allKP_allBad.txt');
+cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/data_resize/aflw/matches_5_train_allKP_allBad.txt');
+
+cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_train_allKP_adam/intermediate/model_all_14400.dat','model to load');
+
+cmd:option('-gpu',1,'gpu to run the testing on');
+cmd:text()
+
+params = cmd:parse(arg)
+-- main(params);
+visualizeResults(params)

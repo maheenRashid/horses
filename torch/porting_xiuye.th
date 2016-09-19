@@ -1,0 +1,63 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_horseHuman';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+require 'loadcaffe';
+require 'ccn2';
+require 'stn';
+
+
+
+local deploy_file='/home/maheenrashid/Downloads/horses/torch//vanilla_deploy.prototxt';
+local caffe_model_file='/home/laoreja/data/VanillaCNN/ZOO/vanillaCNN.caffemodel'
+local out_dir='/home/SSD3/maheen-data/horse_project/vanilla/'
+paths.mkdir(out_dir);
+local out_file=paths.concat(out_dir,'vanilla_fcScratch.dat');
+
+local model = loadcaffe.load(deploy_file,caffe_model_file, 'nn')
+print (model);
+
+model:insert(nn.Tanh(),10);
+model:insert(nn.Abs(),11);
+
+model:insert(nn.Tanh(),8);
+model:insert(nn.Abs(),9);
+
+model:insert(nn.Tanh(),6);
+model:insert(nn.Abs(),7);
+
+model:insert(nn.Tanh(),4);
+model:insert(nn.Abs(),5);
+
+model:insert(nn.Tanh(),2);
+model:insert(nn.Abs(),3);
+
+print (model);
+
+m=model:get(#model);
+print (m);
+print (torch.min(model:get(#model).weight),torch.max(model:get(#model).weight))
+print (torch.min(model:get(#model).bias),torch.max(model:get(#model).bias))
+
+local var = {m.weight:size(2), m.weight:size(1)}
+var = 2/(var[1] + var[2])
+m.weight=torch.randn(m.weight:size()):mul(torch.sqrt(var));
+m.bias=torch.zeros(m.bias:size());
+
+print (torch.min(model:get(#model).weight),torch.max(model:get(#model).weight))
+print (torch.min(model:get(#model).bias),torch.max(model:get(#model).bias))
+
+
+
+model=cudnn.convert(model)
+print (model)
+
+torch.save(out_file,model);
+
+

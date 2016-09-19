@@ -1,0 +1,137 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_horseHuman';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+require 'loadcaffe';
+require 'ccn2';
+require 'stn';
+
+function makeXavierGaussian(model)
+    for idx=1,#model do
+        
+        local m = model.modules[idx]
+        if m.weight then
+            local var;
+            if m.__typename == 'nn.SpatialConvolution' then
+                var = {m.nInputPlane*m.kH*m.kW, m.nOutputPlane*m.kH*m.kW}
+            elseif m.__typename == 'nn.SpatialConvolutionMM' then
+                var = {m.nInputPlane*m.kH*m.kW, m.nOutputPlane*m.kH*m.kW}
+            elseif m.__typename == 'nn.LateralConvolution' then
+                var = {m.nInputPlane*1*1, m.nOutputPlane*1*1}
+            elseif m.__typename == 'nn.VerticalConvolution' then
+                var = {1*m.kH*m.kW, 1*m.kH*m.kW}
+            elseif m.__typename == 'nn.HorizontalConvolution' then
+                var = {1*m.kH*m.kW, 1*m.kH*m.kW}
+            elseif m.__typename == 'nn.Linear' then
+                var = {m.weight:size(2), m.weight:size(1)}
+            elseif m.__typename == 'nn.TemporalConvolution' then
+                var = {m.weight:size(2), m.weight:size(1)}
+            end
+
+            var = 2/(var[1] + var[2])
+            m.weight=torch.randn(m.weight:size()):mul(torch.sqrt(var));
+            m.weight=m.weight/1000;
+            m.bias=torch.zeros(m.bias:size());
+            
+            -- m.weight=torch.zeros(m.weight:size());
+            -- m.bias=torch.zeros(m.bias:size());
+            
+            print (m.weight:size(),var,torch.var(m.weight));
+        end
+    end
+
+    return model
+end
+
+function saveNewModel()
+num_ctrl_pts=36;
+size_out=224;
+
+local dir_models='/home/SSD3/maheen-data/horse_project/models';
+paths.mkdir(dir_models);
+in_file=paths.concat(dir_models,'alexnet.dat');
+out_file=paths.concat(dir_models,'conv5_2fc.dat');
+
+local deploy_file=paths.concat(dir_models,'deploy.prototxt');
+local caffe_model_file=paths.concat(dir_models,'bvlc_alexnet.caffemodel');
+
+local model = loadcaffe.load(deploy_file,caffe_model_file, 'cudnn')
+print (model);
+torch.save(in_file,model);
+
+end
+
+
+
+
+
+local dir_models='/home/SSD3/maheen-data/horse_project/models';
+paths.mkdir(dir_models);
+in_file=paths.concat(dir_models,'alexnet.dat');
+out_file=paths.concat(dir_models,'conv5_2fc_closeToZero.dat');
+-- in_file='/home/SSD3/maheen-data/horse_human_fiveKP/intermediate/model_all_200.dat'
+-- local model=torch.load(in_file);
+-- print (model)
+-- for i =1,#model do
+-- 	if model:get(i).weight then
+-- 		print (i,model:get(i));
+-- 		print (torch.min(model:get(i).weight),torch.max(model:get(i).weight));
+-- 		if model:get(i).bias then
+-- 			print(torch.min(model:get(i).bias),torch.max(model:get(i).bias));
+-- 		end
+-- 	end
+-- end
+
+local model=torch.load(in_file);
+print (model)
+local model_new=nn.Sequential();
+model_new:add(nn.SpatialConvolution(256,128,1,1));
+model_new:add(cudnn.ReLU());
+model_new:add(cudnn.SpatialMaxPooling(3,3,2,2));
+model_new:add(nn.View(4608));
+model_new:add(nn.Linear(4608,128));
+model_new:add(cudnn.ReLU());
+model_new:add(nn.Dropout(0.5));
+model_new:add(nn.Linear(128,72));
+-- model_new=model_new:cuda();
+-- print (model_new);
+
+model_new=makeXavierGaussian(model_new);
+for i=1,14 do
+	model_new:insert(model:get(i):clone(),i);
+end
+print (model_new);
+
+-- check=torch.zeros(10,3,224,224):cuda();
+-- out=model_new:cuda():forward(check);
+-- print (model:get(16).output:size());
+-- print (out:size());
+
+
+-- skjdalkdjla
+torch.save(out_file,model_new);
+
+
+
+-- local input=torch.zeros(10,3,227,227):cuda();
+
+-- local output=model_new:forward(input);
+-- print (output:size())
+
+
+-- 17): nn.Linear(9216 -> 4096)
+--   (18): cudnn.ReLU
+--   (19): nn.Dropout(0.500000)
+--   (20): nn.Linear(4096 -> 4096)
+--   (21): cudnn.ReLU
+--   (22): nn.Dropout(0.500000)
+--   (23): nn.Linear(4096 -> 1000)
+--   (24): cudnn.SoftMax
+
+-- th train_tps_cl.th 2>&1 | tee /home/SSD3/maheen-data/horse_human_fiveKP/log.txt

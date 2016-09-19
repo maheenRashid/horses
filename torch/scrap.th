@@ -1,0 +1,158 @@
+require 'torchx';
+npy4th=require 'npy4th';
+require 'cunn';
+require 'stn';
+-- 	timer=torch.Timer();
+-- print('time 152 gt_output ' .. timer:time().real .. ' seconds')
+
+
+function testTime()
+	label = npy4th.loadnpy('labels.npy')
+		-- ,td.training_set_horse.label:double())
+	out_grids = npy4th.loadnpy('out_grids.npy');
+	
+	-- label=torch.repeatTensor(label,6,1,1):cuda();
+	-- out_grids=torch.repeatTensor(out_grids,6,1,1,1):cuda();
+
+	label=torch.repeatTensor(label,6,1,1);
+	out_grids=torch.repeatTensor(out_grids,6,1,1,1);
+	
+		-- ,out_grids:double())
+	print (out_grids:size());
+	print (label:size())
+
+	t_pts_all=label:clone();
+	
+	timer_lines=torch.Timer();
+	timer_inner=torch.Timer();
+	timer_outer=torch.Timer();
+	timer_total=torch.Timer();
+	timer_total:reset();
+	for i=1,out_grids:size(1) do
+		local grid_curr=out_grids[i];
+		local labels=label[i];
+		print ('____');
+		timer_outer:reset();
+
+		for label_idx=1,labels:size(1) do
+
+			timer_inner:reset();
+
+			local label_curr=labels[{label_idx,{1,2}}];
+			label_curr=label_curr:view(1,1,2);
+			
+			timer_lines:reset();
+			label_curr=torch.repeatTensor(label_curr,grid_curr:size(1),grid_curr:size(2),1);
+			print('time repeat ' .. timer_lines:time().real .. ' seconds')						
+
+			timer_lines:reset();
+			local dist=torch.sum(torch.pow(grid_curr-label_curr,2),3);
+			dist=dist:view(dist:size(1),dist:size(2));
+
+			print('time dist ' .. timer_lines:time().real .. ' seconds')						
+
+			
+			timer_lines:reset();
+			local idx=torch.find(dist:eq(torch.min(dist)),1)[1]
+			print('time idx ' .. timer_lines:time().real .. ' seconds')						
+
+			timer_lines:reset();
+			local row = math.ceil(idx/dist:size(2));
+			local col = idx%dist:size(2);
+			if col==0 then
+				col=dist:size(2);
+			end
+			t_pts_all[i][label_idx][1]=row;
+			t_pts_all[i][label_idx][2]=col;
+			print('time end ' .. timer_lines:time().real .. ' seconds')						
+
+			print('time inner loop ' .. timer_inner:time().real .. ' seconds')
+			
+		end
+		
+		print('time outer loop ' .. timer_outer:time().real .. ' seconds')
+		
+
+	end
+	print('time total loop ' .. timer_total:time().real .. ' seconds')
+end
+	
+	-- ims=npy4th.loadnpy('ims.npy');
+	-- ims_new=npy4th.loadnpy('ims_new.npy');
+	-- print (ims:size());
+	-- print (ims_new:size());
+
+	-- trans  =  nn.Transpose({2,3},{3,4}):cuda();
+	-- bil = nn.BilinearSamplerBHWD():cuda();
+	-- trans_2 = nn.Transpose({2,4},{3,4}):cuda();
+
+	-- ims_cuda=ims:cuda();
+	-- -- local out_grids=locnet:forward(td.training_set_horse.data:cuda());	
+	-- timer=torch.Timer();
+	
+	-- timer:reset();
+
+	-- out_grids=torch.zeros(40,40,2):cuda();
+	-- for r=1,out_grids:size(1) do
+	-- 	for c=1,out_grids:size(2) do
+	-- 		out_grids[{r,c,1}]=-1+(1/20*r);
+	-- 		out_grids[{r,c,2}]=-1+(1/20*c);
+	-- 	end
+	-- end
+	-- out_grids=out_grids:view(1,out_grids:size(1),out_grids:size(2),out_grids:size(3));
+	-- out_grids=torch.repeatTensor(out_grids,ims_new:size(1),1,1,1);
+	
+	
+	-- local trans_out=trans:forward(ims_cuda);
+	-- bil:forward({trans_out,out_grids});
+	-- local ims_new_cuda = trans_2:forward(bil.output);
+	-- print (ims_new_cuda:size())
+
+	-- print (timer:time().real)
+
+	ims_new_cuda=npy4th.loadnpy('ims_cuda_new.npy');
+	ims=npy4th.loadnpy('ims_original.npy');
+	print (ims:size());
+	print (ims_new_cuda:size())
+	
+	im_org=ims[32];
+	im_new_cuda = ims_new_cuda[32];
+
+	-- im_org=ims[32];
+	-- im_new=ims_new[32];
+	-- timer:reset();
+	-- im_new_cuda=ims_new_cuda:double()[32];
+	-- print (timer:time().real)
+	
+	-- print (im_org:size(),im_new:size(),im_new_cuda:size());
+
+	out_dir='/home/SSD3/maheen-data/temp';
+	out_file_im=paths.concat(out_dir,'im_org.jpg');
+	image.save(out_file_im,im_org/255);
+
+	-- out_file_im=paths.concat(out_dir,'im_new.jpg');
+	-- image.save(out_file_im,im_new/255);
+	
+	out_file_im=paths.concat(out_dir,'im_new_cuda.jpg');
+	image.save(out_file_im,im_new_cuda/255);
+	
+
+
+-- a=torch.zeros(15,20);
+-- for i=1,a:size(1) do
+-- 	for j=1,a:size(2) do
+-- 		a[i][j]=1;
+-- 		local idx=torch.find(a:eq(torch.max(a)),1)[1]
+-- 		local row = math.ceil(idx/a:size(2));
+-- 		local col = idx%a:size(2);
+
+-- 		if col==0 then
+-- 			col=a:size(2);
+-- 		end
+		
+-- 		print (i,j,row,col);
+-- 		assert (i==row)
+-- 		assert (j==col);
+-- 		a[i][j]=0;
+-- 	end
+-- end
