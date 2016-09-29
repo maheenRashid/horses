@@ -1,0 +1,119 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_horseHuman_xiuye';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+visualize=require 'visualize';
+
+
+tps_model_path='/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final/model_all_final.dat';
+face_detection_model='/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444.dat';
+
+
+local out_grids_new=torch.zeros(40,40,2):cuda();
+for r=1,out_grids_new:size(1) do
+	for c=1,out_grids_new:size(2) do
+		out_grids_new[{r,c,1}]=-1+(1/20*r);
+		out_grids_new[{r,c,2}]=-1+(1/20*c);
+	end
+end
+out_grids_new=out_grids_new:view(1,out_grids_new:size(1),out_grids_new:size(2),out_grids_new:size(3));
+
+	
+
+locnet = torch.load(tps_model_path);
+-- locnet:evaluate();
+-- trans  =  nn.Transpose({2,3},{3,4}):cuda();
+-- bil = nn.BilinearSamplerBHWD():cuda();
+-- trans_2 = nn.Transpose({2,4},{3,4}):cuda();
+
+
+local locnet = torch.load(tps_model_path);
+local tranet=nn.Transpose({2,3},{3,4})
+local concat=nn.ConcatTable()
+concat:add(tranet)
+concat:add(locnet)
+
+local net=nn.Sequential();
+net:add(concat)
+net:add(nn.BilinearSamplerBHWD())
+
+
+local spanet=nn.Sequential();
+
+local downGrid=nn.Sequential();
+downGrid:add(nn.Identity());
+
+local paranet=nn.ParallelTable();
+paranet:add(net);
+paranet:add(downGrid);
+
+-- spanet:add(paranet);
+spanet:add(paranet);
+-- spanet:
+spanet:add(nn.BilinearSamplerBHWD());
+spanet:add(nn.Transpose({3,4},{2,3}));
+
+-- spanet=spanet:cuda();
+-- print (spanet)
+local batchSize=10;
+local ims=torch.zeros(torch.LongStorage{10,3,224,224}):cuda();
+-- local out_check=paranet:get(1):forward(ims);
+-- print (out_check:size())
+out_grids_new=torch.repeatTensor(out_grids_new,batchSize,1,1,1):cuda();
+
+-- output=spanet:forward{ims,out_grids_new};
+-- print (output:size());
+
+local kp_net=torch.load(face_detection_model);
+spanet:add(kp_net);
+cudnn.convert(spanet,cudnn);
+
+print (spanet);
+
+spanet=spanet:cuda();
+local output=spanet:forward{ims,out_grids_new};
+print (output:size())
+
+
+
+
+
+
+-- nn.ConcatTable();
+-- spanet:add(net);
+-- spanet:add(downsampleGrid);
+-- spanet:add(nn.Transpose({3,4},{2,3}))
+
+-- downscale_net=nn.Sequential()
+
+
+
+-- function downScaleImage(ims,kp_net_size)
+-- 	local ims=ims:clone();
+-- 	out_grids_new=out_grids_new:view(1,out_grids_new:size(1),out_grids_new:size(2),out_grids_new:size(3));
+-- 	out_grids_new=torch.repeatTensor(out_grids_new,ims:size(1),1,1,1);
+	
+-- 	local trans_out=trans:forward(ims);
+-- 	bil:forward({trans_out,out_grids_new});
+-- 	ims = trans_2:forward(bil.output);
+-- 	return ims
+
+	
+    -- local gt_net=nn.Sequential();
+    -- local parnet=nn.ParallelTable();
+    
+    -- parnet:add(tranet:clone());
+    -- parnet:add(nn.Identity());
+    -- gt_net:add(parnet);
+    -- gt_net:add(nn.BilinearSamplerBHWD());
+    -- gt_net:add(nn.Transpose({3,4},{2,3}));
+    
+
+    -- local tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
+    -- return net,gt_net,tps;

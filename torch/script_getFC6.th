@@ -1,0 +1,57 @@
+require 'image'
+npy4th = require 'npy4th'
+
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+require 'loadcaffe';
+require 'ccn2';
+require 'stn';
+require 'data_aflw';
+
+local dir_models='/home/SSD3/maheen-data/horse_project/models';
+local in_file=paths.concat(dir_models,'alexnet.dat');
+
+local model=torch.load(in_file);
+print (model);
+model=model:cuda();
+
+local data_path='/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_all.txt';
+local out_dir='/home/SSD3/maheen-data/horse_project/sanityCheckHorse/fc6';
+
+local mean_im_path = '/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png';
+local std_im_path = '/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png';
+
+local batchSize=128;
+local iterations=30;
+local fc6_num=20;
+local data_params={file_path=data_path,
+					batch_size=batchSize,
+					mean_file=mean_im_path,
+					std_file=std_im_path,
+					augmentation=false,
+					limit=nil,
+                    input_size={224,224},
+                    imagenet_mean=true};
+
+local td=data(data_params);
+
+for i=1,iterations do
+	print (i);
+	td:getTrainingData();
+	td.training_set.data=td.training_set.data:cuda();
+	-- print (td.training_set.data:size(),torch.min(td.training_set.data),torch.max(td.training_set.data))
+	local output= model:forward(td.training_set.data);
+	-- print (output:size())
+	local fc6=model:get(fc6_num).output;
+	-- print (fc6:size())
+	fc6=fc6:double();
+	local out_file_curr=paths.concat(out_dir,i..'.npy');
+	print (out_file_curr)
+	npy4th.savenpy(out_file_curr,fc6);
+end
+

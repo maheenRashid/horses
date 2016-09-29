@@ -1,0 +1,71 @@
+require 'hdf5'
+require 'image'
+npy4th = require 'npy4th'
+-- require 'data_horseHuman';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+require 'loadcaffe';
+require 'ccn2';
+require 'stn';
+
+
+h5_file='/home/laoreja/new-deep-landmark/train/vanilla/aflw_40/aflw_vanilla_train_40_0_weight.h5';
+-- [u'confidence', u'data', u'landmark', u'weight_in', u'weight_out'])
+h5_file='/home/laoreja/new-deep-landmark/train/vanilla/aflw_40/aflw_vanilla_val_40_0_weight.h5';
+local myFile = hdf5.open(h5_file, 'r')
+print (myFile);
+
+data_types={'confidence', 'data', 'landmark', 'weight_in', 'weight_out'};
+for data_type_idx=1,#data_types do
+	data_type=data_types[data_type_idx];
+	print (data_type);
+	local data = myFile:read(data_type):all();
+	print (data:size());
+	print (torch.min(data[1]),torch.max(data[1]));
+
+end
+
+
+
+caffe_model_file='/home/laoreja/pycaffe_scripts/model/aflw_40_vanilla_selected_drop_smooth_vanilla/learn_all_layers_bs_64_2_1e-05_100ep_iter_504900.caffemodel'
+
+-- '/home/laoreja/pycaffe_scripts/model/aflw_40_vanilla_selected_drop_smooth_vanilla/learn_all_layers_bs_64_0_1e-05_20ep_iter_100980.caffemodel'
+meta_debug_dir='/home/SSD3/maheen-data/temp/debug_aflw_40_vanilla_selected_drop_smooth_vanilla';
+deploy_file='/home/SSD3/maheen-data/temp/debug_aflw_40_vanilla_selected_drop_smooth_vanilla/train_fc2.txt';
+
+out_dir = paths.concat(meta_debug_dir,'model_th');
+paths.mkdir(out_dir);
+out_file=paths.concat(out_dir,'fc2_100.dat');
+
+local model = loadcaffe.load(deploy_file,caffe_model_file, 'nn')
+print (model);
+
+model:insert(nn.Tanh(),10);
+model:insert(nn.Abs(),11);
+
+model:insert(nn.Tanh(),8);
+model:insert(nn.Abs(),9);
+
+model:insert(nn.Tanh(),6);
+model:insert(nn.Abs(),7);
+
+model:insert(nn.Tanh(),4);
+model:insert(nn.Abs(),5);
+
+model:insert(nn.Tanh(),2);
+model:insert(nn.Abs(),3);
+print (model);
+
+torch.save(out_file,model);
+print (out_file);
+
+
+
+-- local data = myFile:read('data'):all();
+-- print (data:size());
+-- myFile:close()

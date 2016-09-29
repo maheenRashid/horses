@@ -1,0 +1,44 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_aflw';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+require 'gnuplot';
+dump=require 'dump';
+
+
+function main(params)
+	
+	local data_params={file_path=params.val_data_path,
+	                    batch_size=params.batchSize,
+	                    mean_file=params.mean_im_path,
+	                    std_file=params.std_im_path,
+	                    augmentation=true,
+	                    limit=params.limit};
+
+
+	vd=data(data_params);
+	vd.params.angles={-45,45}
+	for i=1,params.iterations do
+		print ('ITERATION',i);
+		vd:getTrainingData();
+	end
+
+end
+
+
+cmd = torch.CmdLine()
+cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt')
+cmd:option('-batchSize',3,'batch size');
+cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
+cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
+cmd:option('-limit',3,'num of training data to read');
+cmd:option('-iterations',1,'num of iterations to run');
+
+params = cmd:parse(arg)
+main(params);

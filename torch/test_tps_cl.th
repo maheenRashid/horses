@@ -114,8 +114,8 @@ function visualizeResults(params)
 		-- visualizer:saveBatchImagesWithKeypoints(horse_data:double(),horse_pts:double(),file_info,td.params.mean,{-1,1},colors);
 		visualizer:saveBatchImagesWithKeypoints(horse_data:double(),horse_labels,file_info,td.params.mean,{-1,1},colors);
 
-		file_info={file_pre,'_human.jpg'};
-		visualizer:saveBatchImagesWithKeypoints(human_data:double(),human_labels,file_info,td.params.mean,{-1,1},colors);
+		-- file_info={file_pre,'_human.jpg'};
+		-- visualizer:saveBatchImagesWithKeypoints(human_data:double(),human_labels,file_info,td.params.mean,{-1,1},colors);
 	end
 	
 end
@@ -126,15 +126,16 @@ cmd:text()
 cmd:text('Test TPS network')
 cmd:text()
 cmd:text('Options')
-cmd:option('-outDir','/home/SSD3/maheen-data/temp/tps_debug_problem/test_viz_allBad','directory to write output');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/temp/tps_debug_problem/test_viz_allBad','directory to write output');
+cmd:option('-outDir','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/test_viz','directory to write output');
 cmd:option('-num_ctrl_pts',36,'num of training data to read');
 cmd:option('-limit',-1,'num of training data to read');
 cmd:option('-size_out',224,'num of training data to read');
-cmd:option('-batchSize',68,'batch size');
+cmd:option('-batchSize',93,'batch size');
 -- cmd:option('-horse_path','/home/SSD3/maheen-data/horse_project/horse_resize/matches_5_train_fiveKP.txt');
 -- cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/aflw/matches_5_train_fiveKP_noIm.txt');
 cmd:option('-iterations',1,'iterations');
-cmd:option('humanImage' , true);
+cmd:option('humanImage' , false);
 cmd:option('augmentation' , false);
 -- cmd:option('-model','/home/SSD3/maheen-data/horse_human_fiveKP_tps_adam/final/model_all_final.dat','model to load')
 -- cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/aflw/matches_5_train_fiveKP.txt');
@@ -143,14 +144,15 @@ cmd:option('augmentation' , false);
 -- cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/data_resize/aflw/matches_5_train_allKP_dummy.txt');
 -- cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_train_allKP_adam/final/model_all_final.dat','model to load');
 
--- cmd:option('-horse_path','/home/SSD3/maheen-data/horse_project/data_resize/horse/matches_5_val_allKP.txt');
--- cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/data_resize/aflw/matches_5_val_allKP.txt');
+cmd:option('-horse_path','/home/SSD3/maheen-data/horse_project/horse_resize/matches_5_val_fiveKP_single.txt');
+cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/aflw/matches_5_val_fiveKP_noIm_single.txt');
 
-cmd:option('-horse_path','/home/SSD3/maheen-data/horse_project/data_resize/horse/matches_5_train_allKP_allBad.txt');
-cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/data_resize/aflw/matches_5_train_allKP_allBad.txt');
 
-cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_train_allKP_adam/intermediate/model_all_14400.dat','model to load');
+-- cmd:option('-horse_path','/home/SSD3/maheen-data/horse_project/data_resize/horse/matches_5_train_allKP_allBad.txt');
+-- cmd:option('-human_path','/home/SSD3/maheen-data/horse_project/data_resize/aflw/matches_5_train_allKP_allBad.txt');
 
+-- cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_train_allKP_adam/intermediate/model_all_14400.dat','model to load');
+cmd:option('-model','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final/model_all_final.dat','model to load');
 cmd:option('-gpu',1,'gpu to run the testing on');
 cmd:text()
 

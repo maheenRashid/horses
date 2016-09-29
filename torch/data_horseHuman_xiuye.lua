@@ -1,6 +1,6 @@
 
 do  
-    local data = torch.class('data')
+    local data = torch.class('data_horseHuman')
 
     function data:__init(args)
         self.file_path_horse=args.file_path_horse
@@ -225,20 +225,20 @@ do
             end
         end
 
-        local data=torch.zeros(#data_idx,td.training_set_horse.data:size(2),td.training_set_horse.data:size(3),
-                            td.training_set_horse.data:size(4)):type(td.training_set_horse.data:type());
+        local data=torch.zeros(#data_idx,self.training_set_horse.data:size(2),self.training_set_horse.data:size(3),
+                            self.training_set_horse.data:size(4)):type(self.training_set_horse.data:type());
         for idx_idx=1,#data_idx do
             local idx_curr=data_idx[idx_idx];
-            data[idx_idx]=td.training_set_horse.data[idx_curr];
+            data[idx_idx]=self.training_set_horse.data[idx_curr];
         end
 
         local data_human=nil;
         if self.humanImage then
-            data_human=torch.zeros(#data_idx,td.training_set_human.data:size(2),td.training_set_human.data:size(3),
-                                td.training_set_human.data:size(4)):type(td.training_set_human.data:type());
+            data_human=torch.zeros(#data_idx,self.training_set_human.data:size(2),self.training_set_human.data:size(3),
+                                self.training_set_human.data:size(4)):type(self.training_set_human.data:type());
             for idx_idx=1,#data_idx do
                 local idx_curr=data_idx[idx_idx];
-                data_human[idx_idx]=td.training_set_human.data[idx_curr];
+                data_human[idx_idx]=self.training_set_human.data[idx_curr];
             end
             data_human=data_human:clone();
         end

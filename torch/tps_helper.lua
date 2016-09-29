@@ -5,7 +5,7 @@ do
         
     end
 
-    function TPS_Helper:getLoss(pred_output,gt_output,ind_mean)
+    function TPS_Helper:getLoss(pred_output,gt_output,ind_std)
 		local loss=torch.pow(pred_output-gt_output,2);
 		-- print (ind_mean);
 		if ind_mean then
@@ -72,6 +72,95 @@ do
 			end
 		end
 		return t_pts_all;
+	end
+
+	function TPS_Helper:switchMeans(training_data,imagenet_mean,mean,std)
+		assert (#imagenet_mean==3);
+		-- for i=1,3 do
+  --           img_horse[i]:csub(params.imagenet_mean[i])
+  --       end
+  		for i=1,3 do
+  			training_data[{{},i,{},{}}]= training_data[{{},i,{},{}}]+imagenet_mean[i];
+  		end
+
+  		local mean=mean:view(1,mean:size(1),mean:size(2),mean:size(3));
+  		local std=std:view(1,std:size(1),std:size(2),std:size(3));
+  		mean=torch.repeatTensor(mean,training_data:size(1),1,1,1):type(training_data:type());
+  		std=torch.repeatTensor(std,training_data:size(1),1,1,1):type(training_data:type());
+  		training_data=torch.cdiv((training_data-mean),std);
+  		return training_data;
+	end
+
+	
+	function TPS_Helper:switchMeansDebug(training_data,imagenet_mean,mean,std)
+		assert (#imagenet_mean==3);
+		-- for i=1,3 do
+  --           img_horse[i]:csub(params.imagenet_mean[i])
+  --       end
+  		for i=1,3 do
+  			training_data[{{},i,{},{}}]= training_data[{{},i,{},{}}]+imagenet_mean[i];
+  		end
+
+  		local mean=mean:view(1,mean:size(1),mean:size(2),mean:size(3));
+  		local std=std:view(1,std:size(1),std:size(2),std:size(3));
+  		mean=torch.repeatTensor(mean,training_data:size(1),1,1,1):type(training_data:type());
+  		std=torch.repeatTensor(std,training_data:size(1),1,1,1):type(training_data:type());
+  		training_data=torch.cdiv((training_data-mean),std);
+  		return training_data;
+	end	
+
+
+	function TPS_Helper:getPointsOriginalImage(outputs,out_grids)
+	
+		-- local for_loss_all=torch.zeros(outputs:size()):type(outputs:type());
+		local for_loss_all=torch.zeros(outputs:size()):type(outputs:type());
+
+		local outputs=outputs:clone();
+		-- print (outputs[4]);
+		outputs=outputs:resize(outputs:size(1),outputs:size(2)/2,2):transpose(2,3);
+		-- print (outputs[4]);
+		
+		outputs[{{},1,{}}]= (outputs[{{},1,{}}]+1)/2*out_grids:size(2);
+		outputs[{{},2,{}}]= (outputs[{{},2,{}}]+1)/2*out_grids:size(3);
+		-- print (outputs[4]);
+		outputs=torch.round(outputs);
+		
+
+		for idx_im=1,outputs:size(1) do
+			for label_idx=1,outputs:size(3) do
+
+				local r_idx=outputs[idx_im][1][label_idx];
+				-- math.round(outputs[idx_im][1][label_idx]);
+				local c_idx=outputs[idx_im][2][label_idx];
+				-- math.floor(outputs[idx_im][2][label_idx]);
+				
+				if r_idx<1 then
+					r_idx=1;
+				end
+
+				if c_idx<1 then
+					c_idx=1;
+				end
+
+				if r_idx>out_grids:size(2) then
+					r_idx=out_grids:size(2);
+				end
+
+				if c_idx>out_grids:size(3) then
+					c_idx=out_grids:size(3);
+				end
+			
+				local grid_value_r=out_grids[idx_im][r_idx][c_idx][1];
+				local grid_value_c=out_grids[idx_im][r_idx][c_idx][2];
+
+				local for_loss_r= grid_value_r;
+				local for_loss_c= grid_value_c;
+				for_loss_all[idx_im][(2*label_idx)-1]=for_loss_r;
+				for_loss_all[idx_im][2*label_idx]=for_loss_c;
+			end
+		end
+		return for_loss_all
+
 	end
 
 

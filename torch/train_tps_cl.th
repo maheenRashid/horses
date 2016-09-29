@@ -286,7 +286,10 @@ function main(params)
     -- save final model
     torch.save(out_file_net,net);
     npy4th.savenpy(out_file_loss, torch.Tensor(losses))
-
+    
+    if opt.testAfter>0 then
+        npy4th.savenpy(out_file_loss_val, torch.Tensor(val_losses))
+    end
 -- sha1:e99282b7d438:baa6fb60c347c8647277116d2efd6cdeedfbb012
 
 

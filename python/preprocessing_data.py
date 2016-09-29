@@ -536,6 +536,29 @@ def getValidPoints(horse_file,human_file):
     return valid_horse,valid_human;
 
 def main():
+
+    params_dict={};
+    params_dict['path_txt'] = '/home/laoreja/new-deep-landmark/dataset/train/aflw_valImageList.txt';
+    params_dict['path_pre'] = None;
+    params_dict['type_data'] = 'aflw';
+    params_dict['out_dir_meta'] = '/home/SSD3/maheen-data/horse_project/data_check/aflw'
+    util.mkdir(params_dict['out_dir_meta']);
+    params_dict['out_dir_im'] = os.path.join(params_dict['out_dir_meta'],'im');
+    params_dict['out_dir_npy'] = os.path.join(params_dict['out_dir_meta'],'npy');
+    params_dict['out_file_list_npy'] = os.path.join(params_dict['out_dir_npy'],'data_list_val.txt');
+    params_dict['out_file_list_im'] = os.path.join(params_dict['out_dir_im'],'data_list_val.txt');
+    params_dict['out_file_pairs'] = os.path.join(params_dict['out_dir_meta'],'pairs_val.txt');
+    params_dict['out_file_problem']=os.path.join(params_dict['out_dir_meta'],'problem_val.txt');
+    params_dict['overwrite'] = False;
+    params_dict['resize']=(224,224);
+
+    params=createParams('makeBboxPairFiles');
+    params=params(**params_dict);
+    script_makeBboxPairFiles(params)
+    pickle.dump(params._asdict(),open(os.path.join(params.out_dir_meta,'params.p'),'wb'));
+
+
+    return
     # five kp
     out_dir_meta_data='/home/SSD3/maheen-data/horse_project/data_check';
     matches_file='/home/maheenrashid/Downloads/knn_5_points_train_list_clean.txt'

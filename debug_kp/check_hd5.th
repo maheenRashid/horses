@@ -1,0 +1,87 @@
+require 'hdf5'
+require 'image'
+-- h5_file='/home/laoreja/new-deep-landmark/train/vanilla/aflw_40/aflw_vanilla_train_40_0_weight.h5';
+
+-- h5_file='/home/laoreja/new-deep-landmark/train/vanilla/aflw_40/aflw_vanilla_val_40_0_weight.h5';
+h5_file='/home/SSD3/laoreja-data/maheen_use_only/train/vanilla/aflw_40/aflw_vanilla_train_40_16.h5';
+
+input_txt_list = ['/home/SSD3/laoreja-data/maheen_use_only/train/vanilla/aflw_40/aflw_vanilla_train_40.txt',
+        '/home/SSD3/laoreja-data/maheen_use_only/train/vanilla/aflw_40/aflw_vanilla_val_40.txt']
+
+'train_data': '/home/SSD3/laoreja-data/maheen_use_only/train/vanilla/aflw_40/aflw_vanilla_train_40_weight.txt',
+'val_data': '/home/SSD3/laoreja-data/maheen_use_only/train/vanilla/aflw_40/aflw_vanilla_val_40_weight.txt',
+
+local myFile = hdf5.open(h5_file, 'r');
+
+
+data_types={'confidence', 'data', 'landmark'}
+-- , 'weight_in', 'weight_out'};
+for data_type_idx=1,#data_types do
+	data_type=data_types[data_type_idx];
+	print (data_type);
+	local data = myFile:read(data_type):all();
+	print (data:size());
+	print (torch.min(data[1]),torch.max(data[1]));
+end
+
+
+-- mean_im_path='/home/laoreja/finetune-deep-landmark/dataset/train/horse_5_points_40_mean.png';
+-- std_im_path='/home/laoreja/finetune-deep-landmark/dataset/train/horse_5_points_40_std.png';
+mean_im_path='/home/laoreja/finetune-deep-landmark/dataset/train/aflw_40_mean.png'
+std_im_path='/home/laoreja/finetune-deep-landmark/dataset/train/aflw_40_std.png'
+out_dir_viz='/home/SSD3/maheen-data/temp/debug_aflw_40_vanilla_selected_drop_smooth_vanilla/hd5_check'
+paths.mkdir(out_dir_viz);
+mean_im=image.load(mean_im_path)
+-- :float()
+mean_im=mean_im*255;
+std_im=image.load(std_im_path)
+-- :float();
+std_im=std_im*255;
+
+
+-- std_im_temp=torch.zeros(std_im:size());
+-- std_im_temp[1]=std_im[3];
+-- std_im_temp[2]=std_im[2]; 
+-- std_im_temp[3]=std_im[1]; 
+-- std_im=std_im_temp;
+
+-- mean_im_temp=torch.zeros(mean_im:size());
+-- mean_im_temp[1]=mean_im[3];
+-- mean_im_temp[2]=mean_im[2]; 
+-- mean_im_temp[3]=mean_im[1]; 
+-- mean_im=mean_im_temp;
+
+print (mean_im:size(),torch.min(mean_im),torch.max(mean_im));
+print (std_im:size(),torch.min(std_im),torch.max(std_im));
+
+ims=myFile:read('data'):all();
+confs=myFile:read('confidence'):all();
+for idx=1,ims:size(1) do
+    local im_curr=ims[idx]:clone();
+    print (im_curr:size());
+    print (im_curr:type())
+    print (mean_im:type())
+    print (std_im:type())
+    -- :double();
+    conf_curr=confs[idx];
+    print (torch.min(im_curr),torch.max(im_curr));
+
+    local im_mul=torch.cmul(im_curr:clone(),std_im);
+    local im_mul_add=torch.add(im_mul:clone(),mean_im);
+
+
+    im_curr=im_mul_add;
+    -- torch.cmul(torch.add(im_curr,mean_im),std_im+1e-6);
+    -- im_curr=im_curr:add(mean_im);
+    
+    print (torch.min(im_curr),torch.max(im_curr));
+    
+    
+    out_im=paths.concat(out_dir_viz,idx..'.png');
+    image.save(out_im,im_curr/255);
+    -- itorch.image(im_curr);
+    break;
+end
+
+(-2.0147059, 2.3913043)
+(71.65625, 211.93939)

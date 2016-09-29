@@ -1,0 +1,207 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_aflw';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+npy4th=require 'npy4th';
+require 'torchx';
+
+
+
+function plotPoint(im,point,pointSize,color_curr)
+    if x>im:size(3) or y>im:size(2) then
+        return im;
+    end
+    local point=torch.Tensor(point);
+    local starts=torch.round(point-pointSize/2);
+    local ends=torch.round(point+pointSize/2);
+
+    for x_curr=math.max(1,starts[1]),math.min(im:size(3),ends[1]) do
+        for y_curr=math.max(1,starts[2]),math.min(im:size(2),ends[2]) do
+            for idx_rgb=1,3 do
+                im[idx_rgb][y_curr][x_curr]=color_curr[idx_rgb]/255;            
+            end
+        end
+    end
+
+    return im;
+
+end
+
+
+function drawKeyPoints(im,keypoints,scale,colors,pointSize)
+    assert (#keypoints:size()==2);
+    assert (keypoints:size(1)==2);
+    assert (im:size(1)==3);
+    
+    if not pointSize then
+        pointSize=math.max(torch.round(math.min(im:size(2),im:size(3))*0.02),1);
+    end
+    
+    if not colors then
+        colors={{255,0,0}};
+    end
+
+    if torch.max(im)>1 then
+        im=im/255;
+    end
+
+    if scale~=nil then
+        assert (#scale==2);
+        keypoints=keypoints-scale[1];
+        keypoints=torch.div(keypoints,scale[2]-scale[1]);
+        keypoints[{1,{}}]=keypoints[{1,{}}]*im:size(2);
+        keypoints[{2,{}}]=keypoints[{2,{}}]*im:size(3);
+    end
+
+    for label_idx=1,keypoints:size(2) do
+        x=keypoints[2][label_idx];
+        y=keypoints[1][label_idx];
+        local color_curr=colors[math.min(#colors,label_idx)];
+        im=plotPoint(im,{x,y},pointSize,color_curr);
+    end
+
+    return im;
+end
+
+
+meta_debug_dir='/home/SSD3/maheen-data/temp/debug_aflw_40_vanilla_selected_drop_smooth_vanilla';
+
+out_dir = paths.concat(meta_debug_dir,'model_th');
+paths.mkdir(out_dir);
+
+model_file=paths.concat(out_dir,'');
+
+
+
+-- model_file='/home/SSD3/maheen-data/horse_project/vanilla/vanilla_original.dat';
+-- out_file_viz=paths.concat(meta_debug_dir,'viz_vanilla_original');
+-- paths.mkdir(out_file_viz);
+
+-- data_file='/home/SSD3/maheen-data/horse_project/data_check/aflw/pairs_val.txt';
+-- mean_im_path='/home/laoreja/finetune-deep-landmark/dataset/train/aflw_40_mean.png'
+-- std_im_path='/home/laoreja/finetune-deep-landmark/dataset/train/aflw_40_std.png'
+
+-- -- data_file='/home/SSD3/maheen-data/horse_project/data_check/face/pairs.txt';
+-- -- mean_im_path='/home/SSD3/maheen-data/horse_project/data_check/face/mean.png';
+-- -- std_im_path='/home/SSD3/maheen-data/horse_project/data_check/face/std.png';
+
+
+
+model_file='/home/SSD3/maheen-data/horse_project/vanilla/vanilla_original.dat';
+out_file_viz=paths.concat(meta_debug_dir,'viz_data_aflw_check');
+paths.mkdir(out_file_viz);
+
+
+model_file='/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444.dat'
+out_file_viz='/home/SSD3/maheen-data/temp/vanilla_train_bn_check/viz_temp';
+-- data_file='/home/SSD3/maheen-data/horse_project/data_check/aflw/pairs_val.txt';
+
+
+
+mean_im_path='/home/laoreja/finetune-deep-landmark/dataset/train/aflw_40_mean.png'
+std_im_path='/home/laoreja/finetune-deep-landmark/dataset/train/aflw_40_std.png'
+
+-- data_file='/home/SSD3/maheen-data/horse_project/data_check/face/pairs.txt';
+-- mean_im_path='/home/SSD3/maheen-data/horse_project/data_check/face/mean.png';
+-- std_im_path='/home/SSD3/maheen-data/horse_project/data_check/face/std.png';
+
+local data_dir='/home/SSD3/maheen-data/data_face_network';
+local dataset_pre='aflw_cvpr';
+local train_pair_file=paths.concat(data_dir,dataset_pre..'_train.txt');
+augmentation=true;
+
+local str_resize='40';
+local mean_im_path=paths.concat(data_dir,dataset_pre..'_'..str_resize..'_mean.png');
+local std_im_path=paths.concat(data_dir,dataset_pre..'_'..str_resize..'_std.png');
+
+local train_pair_file='/home/SSD3/maheen-data/horse_project/data_check/aflw/pairs_val.txt'
+augmentation=false;
+
+model_file='/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_hlr/intermediate/model_all_1120.dat'
+out_file_viz='/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_hlr/viz_res'
+train_pair_file='/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt';
+augmentation=false;
+paths.mkdir(out_file_viz);
+
+model_file='/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_scratch/final/model_all_final.dat'
+out_file_viz='/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_scratch/viz_res'
+train_pair_file='/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt';
+augmentation=false;
+paths.mkdir(out_file_viz);
+
+model_file='/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_hlr_longer/final/model_all_final.dat'
+out_file_viz='/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_hlr_longer/viz_res'
+train_pair_file='/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt';
+augmentation=false;
+paths.mkdir(out_file_viz);
+
+
+
+local data_params={file_path=train_pair_file,
+					batch_size=100,
+					mean_file=mean_im_path,
+					std_file=std_im_path,
+					augmentation=augmentation};
+
+td=data(data_params);
+model=torch.load(model_file);
+print (model);
+model:evaluate();
+model:cuda();
+colors={{255,0,0},{255,255,0},{0,0,255},{0,255,0},{255,0,255}}
+for batch_num=1,2 do
+
+	print ('BATCH_NUM',batch_num);
+	td:getTrainingData();
+
+	-- print (td.training_set.data:size())
+	-- print (td.training_set.label:size())
+
+	td.training_set.data=td.training_set.data:cuda();
+	results=model:forward(td.training_set.data);
+	-- print (results:size());
+
+	-- td.training_set.data=td.training_set.data:double();
+
+	
+	out_file_pre=paths.concat(out_file_viz,batch_num..'_');
+
+	for idx_test=1,td.training_set.data:size(1) do
+		-- print (idx_test);
+		-- local im_curr=td.training_set.data[idx_test]:clone();
+	 --    im_curr=torch.cmul(im_curr,td.std_im);
+		-- im_curr=im_curr+td.mean_im;
+
+		-- -- print(td.training_set.input[idx_test]);
+		local im_curr=image.load(td.training_set.input[idx_test]);
+		
+		local labels_gt=td.training_set.label[idx_test]
+		labels_gt=labels_gt[{{},{1,2}}]:t();
+		-- print (labels_gt);
+
+		local labels_pred=results[idx_test];
+		-- print labels_pred,
+		labels_pred=labels_pred:resize(5,2):t();
+		
+		-- local t=labels_pred[{{},1}]:clone();
+		-- labels_pred[{{},1}]=labels_pred[{{},2}];
+		-- labels_pred[{{},2}]=t;
+		-- labels_pred=labels_pred:t();
+		-- print (labels_pred)
+
+		local im_pred=drawKeyPoints(im_curr:clone(),labels_pred,{-1,1},colors);
+		local out_file_pred=out_file_pre..idx_test..'_pred.png';
+
+		image.save(out_file_pred,im_pred);
+
+	    im_curr=drawKeyPoints(im_curr,labels_gt,{-1,1},colors);
+	    local out_file_gt=out_file_pre..idx_test..'_gt.png';
+		image.save(out_file_gt,im_curr);
+
+	end
+end
+print (out_file_viz);
+-- print (td.training_set.label[1])
+
