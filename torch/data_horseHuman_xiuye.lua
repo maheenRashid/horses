@@ -95,7 +95,7 @@ do
             self.lines_horse,self.lines_human,self.start_idx_horse,self.params)    
         end
         
-        if self.start_idx_horse<start_idx_horse_before then
+        if self.start_idx_horse<start_idx_horse_before and self.augmentation then
             print ('shuffling data'..self.start_idx_horse..' '..start_idx_horse_before )
             self.lines_horse,self.lines_human=self:shuffleLines(self.lines_horse,self.lines_human);
         end

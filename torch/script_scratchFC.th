@@ -1,0 +1,61 @@
+require 'cudnn'
+require 'cunn'
+require 'nn'
+
+-- model_path='/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat';
+-- model_path_old='/home/SSD3/maheen-data/horse_project/vanilla/vanilla_scratch_bn_large.dat';
+-- out_file='/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762_fcScratch.dat';
+
+
+model_path='/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444.dat';
+model_path_old='/home/SSD3/maheen-data/horse_project/vanilla/vanilla_scratch_bn_large.dat';
+out_file='/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444_fcScratch.dat';
+
+
+model=torch.load(model_path);
+model=model:double();
+-- model_old=torch.load(model_path_old);
+print (model);
+
+for i=1,5 do
+	model:remove(26-i);
+end
+
+
+
+model:insert(nn.Linear(576,100));
+model:insert(nn.BatchNormalization(100));
+model:insert(nn.Tanh());
+model:insert(nn.Abs());
+model:insert(nn.Linear(100,10));
+
+print (model);
+
+m=model:get(#model-4);
+print (m);
+var = {m.weight:size(2), m.weight:size(1)}
+var = 2/(var[1] + var[2])
+m.weight=torch.randn(m.weight:size()):mul(torch.sqrt(var)):clone();
+m.bias=torch.zeros(m.bias:size()):clone();
+print (m.weight:size(),var,torch.var(m.weight));
+
+m=model:get(#model);
+print (m);
+var = {m.weight:size(2), m.weight:size(1)}
+var = 2/(var[1] + var[2])
+m.weight=torch.randn(m.weight:size()):mul(torch.sqrt(var));
+m.bias=torch.zeros(m.bias:size());
+print (m.weight:size(),var,torch.var(m.weight));
+
+-- for i=1,#model do
+-- 	if model:get(i).weight then
+-- 		print (model:get(i),torch.var(model:get(i).weight))
+-- 		-- torch.var(model_old:get(i).weight));
+-- 	end
+-- end
+
+cudnn.convert(model,cudnn);
+-- gradParameters:zero();
+parameters, gradParameters = model:getParameters()
+print (model);
+torch.save(out_file,model);

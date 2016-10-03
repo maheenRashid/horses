@@ -92,6 +92,16 @@ do
 	end
 
 	
+	function TPS_Helper:unMean(training_data,mean,std)
+  		local mean=mean:view(1,mean:size(1),mean:size(2),mean:size(3));
+  		local std=std:view(1,std:size(1),std:size(2),std:size(3));
+  		mean=torch.repeatTensor(mean,training_data:size(1),1,1,1):type(training_data:type());
+  		std=torch.repeatTensor(std,training_data:size(1),1,1,1):type(training_data:type());
+  		training_data=torch.cmul(training_data,std)+mean;
+  		return training_data;
+	end	
+
+	
 	function TPS_Helper:switchMeansDebug(training_data,imagenet_mean,mean,std)
 		assert (#imagenet_mean==3);
 		-- for i=1,3 do

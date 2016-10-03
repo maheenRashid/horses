@@ -138,12 +138,25 @@ augmentation=false;
 paths.mkdir(out_file_viz);
 
 
+model_file='/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_orglr/final/model_all_final.dat'
+out_file_viz='/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_orglr/viz_res';
+train_pair_file='/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt';
+augmentation=false;
+paths.mkdir(out_file_viz);
+
+
+model_file='/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_orglr/final/model_all_final.dat'
+out_file_viz='/home/SSD3/maheen-data/horse_project/ft_horse_allKp_gtWarp_halfBack_1e-3/ft_orglr_20epoch/test_images';
+train_pair_file='/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss.txt';
+augmentation=false;
+paths.mkdir(out_file_viz);
 
 local data_params={file_path=train_pair_file,
 					batch_size=100,
 					mean_file=mean_im_path,
 					std_file=std_im_path,
-					augmentation=augmentation};
+					augmentation=augmentation,
+					input_size={40,40}};
 
 td=data(data_params);
 model=torch.load(model_file);
@@ -192,13 +205,13 @@ for batch_num=1,2 do
 		-- print (labels_pred)
 
 		local im_pred=drawKeyPoints(im_curr:clone(),labels_pred,{-1,1},colors);
-		local out_file_pred=out_file_pre..idx_test..'_pred.png';
+		local out_file_pred=out_file_pre..idx_test..'_org.jpg';
 
 		image.save(out_file_pred,im_pred);
 
-	    im_curr=drawKeyPoints(im_curr,labels_gt,{-1,1},colors);
-	    local out_file_gt=out_file_pre..idx_test..'_gt.png';
-		image.save(out_file_gt,im_curr);
+	 --    im_curr=drawKeyPoints(im_curr,labels_gt,{-1,1},colors);
+	 --    local out_file_gt=out_file_pre..idx_test..'_gt.png';
+		-- image.save(out_file_gt,im_curr);
 
 	end
 end

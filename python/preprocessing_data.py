@@ -536,7 +536,8 @@ def getValidPoints(horse_file,human_file):
     return valid_horse,valid_human;
 
 def main():
-
+    print 'hello from preprocessing_data';
+    return
     params_dict={};
     params_dict['path_txt'] = '/home/laoreja/new-deep-landmark/dataset/train/aflw_valImageList.txt';
     params_dict['path_pre'] = None;
