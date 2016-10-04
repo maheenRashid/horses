@@ -142,11 +142,7 @@ do
                     local ans = rotation_matrix*torch.Tensor({label_horse[i][2],label_horse[i][1]}):view(2,1);
                     label_horse[i][1]=ans[2][1];
                     label_horse[i][2]=ans[1][1];
-                    -- print (label_horse[i]);
-                    -- print (torch.all(label_horse[i]:le(1)))
-                    -- print (torch.all(label_horse[i]:ge(-1)))
                     if torch.all(label_horse[i]:ge(-1)) and torch.all(label_horse[i]:le(1)) then
-                        -- print ('setting isValid');
                         isValid=true;
                     else
                         isValid=false;
@@ -167,10 +163,7 @@ do
                 break;
             end
         end
-        -- print (iter,isValid,angles[rand])
-        -- print (label_horse_org)
-        -- print (label_horse);    
-        -- print ('____');
+
         return img_horse,label_horse
     end
 

@@ -19,7 +19,8 @@ def createParams(type_Experiment):
                 'out_file_pairs',
                 'overwrite',
                 'resize',
-                'out_file_problem']
+                'out_file_problem',
+                'buff_ratio']
         params = namedtuple('Params_makeBboxPairFiles',list_params);
     elif type_Experiment=='makeMatchFile':
         list_params=['num_neighbors',
@@ -133,6 +134,78 @@ def modifyHumanFile(orig_file,new_file,resize):
         new_lines=[data_curr[2]+' '+str(resize[0])+' '+str(resize[1]) for data_curr in data];
     util.writeFile(new_file,new_lines);
 
+
+def getBufferOrgImage(bbox,tot_size,buff_size):
+    ac_size=tot_size-buff_size;
+    buffers_org=[];
+    for i in range(2):
+        idx_max=2*i+1;
+        idx_min=2*i;
+        dim_size=bbox[idx_max]-bbox[idx_min];
+        scale_curr=float(ac_size)/dim_size
+        buffers_org.append(int(round(buff_size/scale_curr)));
+    return buffers_org;
+        
+
+def getImPadValues(im_size,bbox,buffers_org):
+    bbox_added=bbox[:];
+    to_pad=[0,0,0,0];
+    for i in range(2):
+        idx_min=2*i;
+        idx_max=2*i+1;
+        bbox_added[idx_min]=bbox_added[idx_min]-buffers_org[i];
+        if bbox_added[idx_min]<0:
+            to_pad[idx_min]=abs(bbox_added[idx_min]);
+        
+        bbox_added[idx_max]=bbox_added[idx_max]+buffers_org[i];
+        
+        if bbox_added[idx_max]>im_size[i]:
+            to_pad[idx_max]=bbox_added[idx_max]-im_size[i];
+            
+    return to_pad;
+        
+
+def addBuffer(im,bbox_curr,anno_points_curr,buff_size,tot_size):
+    buffers_org=getBufferOrgImage(bbox_curr,tot_size,buff_size);
+    im_size=(im.shape[1],im.shape[0]);
+    to_pad=getImPadValues(im_size,bbox_curr,buffers_org);
+    im_new=np.pad(im,[(to_pad[2],to_pad[3]),(to_pad[0],to_pad[1]),(0,0)],'edge');
+    bbox_added=[bbox_curr[idx]+to_pad[(idx/2)*2] for idx in range(len(bbox_curr))];
+    anno_points_new=np.array(anno_points_curr);
+    anno_points_new[anno_points_new[:,2]>0,0]=anno_points_new[anno_points_new[:,2]>0,0]+to_pad[0];
+    anno_points_new[anno_points_new[:,2]>0,1]=anno_points_new[anno_points_new[:,2]>0,1]+to_pad[2];
+    for i in range(2):
+        idx_min=2*i;
+        idx_max=2*i+1;
+        bbox_added[idx_min]=bbox_added[idx_min]-buffers_org[i];
+        bbox_added[idx_max]=bbox_added[idx_max]+buffers_org[i];
+    return im_new,bbox_added,anno_points_new;
+
+    
+def saveBBoxImAndNpyResizeBuffer((im_file,bbox,key_pts,out_file,out_file_npy,resize_size,buff_size,idx)):
+    print idx;
+    problem=False;
+    im = cv2.imread(im_file, 1)
+    buff_size=resize_size[0]*buff_size
+    im,bbox,key_pts=addBuffer(im,bbox,key_pts,buff_size,resize_size[0])
+    
+    rows, cols = im.shape[:2]
+    im=im[bbox[2]:bbox[3],bbox[0]:bbox[1],:];
+    if resize_size is not None:
+        im = cv2.resize(im, (resize_size[1],resize_size[0]))
+
+    key_pts=getBBoxNpyResize(bbox,key_pts,resize_size)
+    if key_pts is None or np.any(key_pts[key_pts[:,2]>0,:2]<0):
+        problem=True;
+
+    if problem:
+        print key_pts;
+        return (out_file,out_file_npy,im_file);
+    else:
+        cv2.imwrite(out_file, im)
+        np.save(out_file_npy,key_pts); 
+
+
 def script_makeBboxPairFiles(params):
     path_txt = params.path_txt
     path_pre = params.path_pre
@@ -146,6 +219,7 @@ def script_makeBboxPairFiles(params):
     overwrite = params.overwrite
     resize_size=params.resize;
     out_file_problem=params.out_file_problem;
+    buff_ratio=params.buff_ratio;
 
     util.mkdir(out_dir_im);
     util.mkdir(out_dir_npy);
@@ -184,12 +258,19 @@ def script_makeBboxPairFiles(params):
         data_pairs.append((out_file,out_file_npy));
 
         if not os.path.exists(out_file) or overwrite:
-            args.append((path_im_curr,bbox_curr,key_pts,out_file,out_file_npy,resize_size,idx));
+            if buff_ratio is None:
+                args.append((path_im_curr,bbox_curr,key_pts,out_file,out_file_npy,resize_size,idx));
+            else:
+                args.append((path_im_curr,bbox_curr,key_pts,out_file,out_file_npy,resize_size,buff_ratio,idx));
 
     # print len(args),len(path_im);
     p=multiprocessing.Pool(multiprocessing.cpu_count());
-    
-    problem_cases=p.map(saveBBoxImAndNpyResize,args);
+
+    if buff_ratio is None:
+        problem_cases=p.map(saveBBoxImAndNpyResize,args);
+    else:
+        problem_cases=p.map(saveBBoxImAndNpyResizeBuffer,args);
+
     problem_cases=[pair_curr for pair_curr in problem_cases if pair_curr is not None];
     problem_pairs=[(pair_curr[0],pair_curr[1]) for pair_curr in problem_cases];
     for p in problem_pairs:
@@ -207,6 +288,8 @@ def script_makeBboxPairFiles(params):
 
     problem_input=[pair_curr[2] for pair_curr in problem_cases];
     util.writeFile(out_file_problem,problem_input);
+
+
 
 def dump_script_makeBBoxPairFiles():
     # horse
@@ -536,7 +619,33 @@ def getValidPoints(horse_file,human_file):
     return valid_horse,valid_human;
 
 def main():
-    print 'hello from preprocessing_data';
+
+    params_dict={};
+    params_dict['path_txt'] ='/home/laoreja/new-deep-landmark/dataset/train/valImageList_2.txt'
+    params_dict['path_pre'] = None;
+    params_dict['type_data'] = 'horse';
+    params_dict['out_dir_meta'] = '/home/SSD3/maheen-data/horse_project/data_padded/horse'
+    util.mkdir(params_dict['out_dir_meta']);
+    params_dict['out_dir_im'] = os.path.join(params_dict['out_dir_meta'],'im');
+    params_dict['out_dir_npy'] = os.path.join(params_dict['out_dir_meta'],'npy');
+    params_dict['out_file_list_npy'] = os.path.join(params_dict['out_dir_npy'],'data_list_val.txt');
+    params_dict['out_file_list_im'] = os.path.join(params_dict['out_dir_im'],'data_list_val.txt');
+    params_dict['out_file_pairs'] = os.path.join(params_dict['out_dir_meta'],'pairs_val.txt');
+    params_dict['out_file_problem']=os.path.join(params_dict['out_dir_meta'],'problem_val.txt');
+    params_dict['overwrite'] = False;
+    params_dict['resize']=(224,224);
+    params_dict['buff_ratio']=0.1;
+    params=createParams('makeBboxPairFiles');
+
+    params=params(**params_dict);
+    script_makeBboxPairFiles(params)
+    pickle.dump(params._asdict(),open(os.path.join(params.out_dir_meta,'params.p'),'wb'));
+
+    print params.__dict__
+
+
+
+    # print 'hello from preprocessing_data';
     return
     params_dict={};
     params_dict['path_txt'] = '/home/laoreja/new-deep-landmark/dataset/train/aflw_valImageList.txt';
