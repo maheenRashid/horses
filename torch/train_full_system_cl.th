@@ -211,14 +211,14 @@ local fevalScore = function(x)
     local loss,dloss,midoutputs,inputs=doTheForward(batch_inputs,batch_targets);
 
     local grad_mid=net:get(2):backward(midoutputs, dloss);
-    if full_back_prop then
-        print ('full_back_proping')
-        local std_rep=td.std_im:view(1,td.std_im:size(1),td.std_im:size(2),td.std_im:size(3)):clone();
-        std_rep=torch.repeatTensor(std_rep,grad_mid:size(1),1,1,1):type(grad_mid:type());
-        grad_mid=torch.cdiv(grad_mid,std_rep);    
-        -- net:get(2):backward(midoutputs,dloss);
-        net:get(1):backward(inputs, grad_mid);
-    end
+    -- if full_back_prop then
+    --     print ('full_back_proping')
+    --     local std_rep=td.std_im:view(1,td.std_im:size(1),td.std_im:size(2),td.std_im:size(3)):clone();
+    --     std_rep=torch.repeatTensor(std_rep,grad_mid:size(1),1,1,1):type(grad_mid:type());
+    --     grad_mid=torch.cdiv(grad_mid,std_rep);    
+    --     -- net:get(2):backward(midoutputs,dloss);
+    --     net:get(1):backward(inputs, grad_mid);
+    -- end
     
     return loss, gradParameters;
 end
@@ -511,10 +511,10 @@ function main(params)
     net=createIntegratedModel(params.tps_model_path,params.face_detection_model_path,params.full_size);
     net:training();
     
-    if not params.full_back_prop then
-        print ('making ev');
-        net:get(1):evaluate();
-    end
+    -- if not params.full_back_prop then
+    --     print ('making ev');
+    --     net:get(1):evaluate();
+    -- end
 
     if params.full_size then
         ds_grid=nil;
@@ -614,12 +614,12 @@ function main(params)
             val_losses[#val_losses+1]=loss;
             val_losses_iter[#val_losses_iter+1]=i;
 
-            if params.full_back_prop then
+            -- if params.full_back_prop then
                 net:training();
-            else
-                print ('making training');
-                net:get(2):training();
-            end
+            -- else
+            --     print ('making training');
+            --     net:get(2):training();
+            -- end
             disp_str=string.format("minibatches processed: %6s, val loss = %6.6f", i, val_losses[#val_losses])
             logger:writeString(dump.tostring(disp_str)..'\n');
             print(disp_str)
@@ -634,7 +634,7 @@ function main(params)
                 torch.save(out_file_intermediate,net);
             else
                 print ('saving intermediate');
-                torch.save(out_file_intermediate,net:get(2));
+                torch.save(out_file_intermediate,net);
             end
             
             local out_file_loss_intermediate=out_file_loss_intermediate_pre..i..'.npy';
@@ -653,11 +653,11 @@ function main(params)
 	end
 
     -- save final model
-    if params.full_back_prop then
+    -- if params.full_back_prop then
         torch.save(out_file_net,net);
-    else
-        torch.save(out_file_net,net:get(2));
-    end
+    -- else
+    --     torch.save(out_file_net,net);
+    -- end
 
     npy4th.savenpy(out_file_loss, torch.Tensor(losses))
     
@@ -678,12 +678,22 @@ cmd:text('Options')
 local epoch_size=56;
 
 -- cmd:option('-model','/home/SSD3/maheen-data/horse_project/vanilla/vanilla_scratch_bn.dat','model to load')
-cmd:option('-tps_model_path','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final/model_all_final.dat');
-cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444.dat');
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_full_halfBack_padded_1e-2','directory to write output');
 
-cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
-cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
+cmd:option('-tps_model_path','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final/model_all_final.dat');
+
+-- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444_fcScratch.dat');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_fcScratch_halfBack_1e-2','directory to write output');
+-- cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
+-- cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
+-- cmd:option('-full_size',false,'whether to downscale between nets');
+
+
+cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_big_halfBack_1e-2','directory to write output');
+cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
+cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
+cmd:option('-full_size',true,'whether to downscale between nets');
+
 cmd:option('-limit',-1,'num of training data to read');
 cmd:option('-iterations',50*epoch_size,'num of iterations to run');
 cmd:option('-saveAfter',10*epoch_size,'num of iterations after which to save model');
@@ -695,8 +705,10 @@ cmd:option('-dispPlotAfter',30,'num iterations after which to display training l
 -- cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/pairs_val.txt')
 -- cmd:option('-data_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_train.txt')
 
-cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_padded/horse/pairs_val.txt')
-cmd:option('-data_path','/home/SSD3/maheen-data/horse_project/data_padded/horse/pairs.txt')
+-- cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_padded/horse/pairs_val.txt')
+-- cmd:option('-data_path','/home/SSD3/maheen-data/horse_project/data_padded/horse/pairs.txt')
+cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt')
+cmd:option('-data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/pairs.txt')
 
 cmd:option('learningRate', 1e-2)
 cmd:option('learningRateDecay',5e-6)
@@ -707,7 +719,6 @@ cmd:option('augmentation' , true);
 
 cmd:option('-gpu',1,'gpu to run the training on');
 
-cmd:option('-full_size',false,'whether to downscale between nets');
 cmd:option('-full_back_prop',false,'whether to back prop through spatial net as well');
 params = cmd:parse(arg)
 main(params);
