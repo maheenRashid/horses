@@ -15,8 +15,6 @@ visualize=require 'visualize';
 
 
 function getLossD(pred_output_all,gt_output_all)
-	-- print (pred_output_all:size())
-	-- print (gt_output_all:size());
 	loss_all=torch.zeros(pred_output_all:size()):type(pred_output_all:type());
 
 	for im_idx=1,pred_output_all:size(1) do
@@ -429,18 +427,21 @@ local epoch_size=56;
 
 -- cmd:option('-model','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_big_fcScratch_1e-2/intermediate/model_all_2128.dat');
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_big_fcScratch_1e-2/resume','directory to write output');
--- cmd:option('-inputSize',224,'size of input image');
--- cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
--- cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
 
-cmd:option('-model','/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444_fcScratch.dat');
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_small_fcScratch_1e-2','directory to write output');
-cmd:option('-inputSize',40,'size of input image');
-cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
-cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
+cmd:option('-model','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-2/final/model_all_final.dat');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-2/resume_1e-3');
+cmd:option('-inputSize',224,'size of input image');
+cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
+cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
+
+-- cmd:option('-model','/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444_fcScratch.dat');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_small_fcScratch_1e-2','directory to write output');
+-- cmd:option('-inputSize',40,'size of input image');
+-- cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
+-- cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
 
 cmd:option('-limit',-1,'num of training data to read');
-cmd:option('-iterations',80*epoch_size,'num of iterations to run');
+cmd:option('-iterations',30*epoch_size,'num of iterations to run');
 cmd:option('-saveAfter',10*epoch_size,'num of iterations after which to save model');
 cmd:option('-batchSize',64,'batch size');
 cmd:option('-testAfter',30,'num iterations after which to get validation loss');
@@ -455,7 +456,7 @@ cmd:option('-data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/p
 -- cmd:option('-data_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_train.txt')
 
 
-cmd:option('learningRate', 1e-2)
+cmd:option('learningRate', 1e-3)
 cmd:option('learningRateDecay',5e-6)
 cmd:option('beta1', 0.9)
 cmd:option('beta2', 0.999)
@@ -466,13 +467,13 @@ cmd:option('-gpu',1,'gpu to run the training on');
 cmd:text()
 
 params = cmd:parse(arg)
--- main(params);
+main(params);
 
 cmd:option('-iterations',2,'num of iterations to run');
 cmd:option('-batchSize',100,'batch size');
 cmd:option('-model',paths.concat(params.outDir,'final/model_all_final.dat'));
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_gtWarp_halfBack_1e-3/ft_1e-2_fcScratch_80epoch_small');
-cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss.txt')
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_gtWarp_halfBack_1e-3/ft_1e-2_fcScratch_80epoch_small');
+-- cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss.txt')
 params = cmd:parse(arg)
 test(params);
 

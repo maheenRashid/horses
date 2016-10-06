@@ -143,6 +143,33 @@ function getLoss(pred_output_all,gt_output_all)
 	return torch.mean(loss_all),loss_all;
 end
 
+
+function getLossEuclidean(pred_output_all,gt_output_all)
+    loss_all=torch.zeros(pred_output_all:size(1)):type(pred_output_all:type());
+
+    for im_idx=1,pred_output_all:size(1) do
+
+        local gt_output=gt_output_all[im_idx];
+        local pred_output=pred_output_all[im_idx];
+
+        local gt_index=gt_output[{{},3}];
+        local idx_keep=torch.find(gt_index:gt(0), 1)
+        -- print (pred_output,gt_output,idx_keep)
+        local gt_output=gt_output[{{},{1,2}}]:clone();
+
+        pred_output=pred_output:view(pred_output:size(1)/2,2);
+        -- print (gt_output,pred_output)
+        local loss=torch.pow(torch.sum(torch.pow(pred_output-gt_output,2),2),0.5);
+        local loss_keep=torch.zeros(#idx_keep):type(pred_output:type());
+        for idx_idx_keep=1,#idx_keep do
+            loss_keep[idx_idx_keep]=loss[idx_keep[idx_idx_keep]];
+        end
+        loss_all[im_idx]=torch.mean(loss_keep);
+    end
+
+    return torch.mean(loss_all),loss_all;
+end
+
 function doTheForward(batch_inputs,batch_targets,saveImage)
     gradParameters:zero()
     local batch_inputs_view;
@@ -195,6 +222,61 @@ function doTheForward(batch_inputs,batch_targets,saveImage)
     local loss = getLoss(t_pts,batch_targets);
     return loss,dloss,midoutputs,inputs;
 end
+
+
+function doTheForwardEuclidean(batch_inputs,batch_targets,saveImage)
+    gradParameters:zero()
+    local batch_inputs_view;
+    if saveImage then
+        batch_inputs_view=batch_inputs:double():clone();
+    end
+
+    local inputs;
+    if ds_grid then
+        inputs={batch_inputs,ds_grid:clone()}
+    else
+        inputs=batch_inputs;    
+    end
+    local midoutputs=net:get(1):forward(inputs);
+
+    local midoutputs_view;
+    if saveImage then
+        midoutputs_view=midoutputs:double():clone();
+    end
+
+    midoutputs=tps_helper:switchMeans(midoutputs,td.params.imagenet_mean,td.mean_im,td.std_im)
+    -- print ('mean',torch.mean(midoutputs));
+
+    local outputs=net:get(2):forward(midoutputs);
+    
+    local tps_layer;
+    if ds_grid then
+        tps_layer= net:get(1):get(1):get(1):get(1):get(2);
+        tps_layer=tps_layer:get(#tps_layer);
+    else
+        tps_layer= net:get(1):get(1):get(2);
+        tps_layer=tps_layer:get(#tps_layer);
+    end
+
+    local t_pts=tps_helper:getPointsOriginalImage(outputs,tps_layer.output)
+
+    if saveImage then
+        -- local t_pts_copy=t_pts:clone();
+        local outputs_view=outputs:view(outputs:size(1),outputs:size(2)/2,2):clone();
+        local t_pts_view=t_pts:view(t_pts:size(1),t_pts:size(2)/2,2):clone();
+        local colors={{255,0,0},{255,255,0},{0,0,255},{0,255,0},{255,0,255}};
+   
+        visualizer=Visualize();
+        t_pts_view=t_pts_view:transpose(2,3)
+        visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,t_pts_view,{saveImage,'_org.jpg'},td.params.imagenet_mean,{-1,1},colors);
+        visualizer:saveBatchImagesWithKeypoints(midoutputs_view,outputs_view:transpose(2,3),{saveImage,'.jpg'},td.params.imagenet_mean,{-1,1},colors);
+    end
+
+    -- local dloss = getLossD(t_pts,batch_targets);
+    local loss,loss_all = getLossEuclidean(t_pts,batch_targets);
+    return loss,loss_all,midoutputs,inputs;
+end
+
 
 
 local fevalScore = function(x)
@@ -276,7 +358,7 @@ function testOld(params)
     logger:writeString(dump.tostring('done loading network')..'\n');
     -- print ('done loading network');
     -- logger:writeString(dump.tostring(net)..'\n');
-    -- print (net);
+    print (net);
 
     logger:writeString(dump.tostring('making cuda')..'\n');
     -- print ('making cuda');
@@ -304,6 +386,11 @@ function testOld(params)
 
     td=data(data_params);
 
+    data_params.input_size={224,224};
+    data_params.imagenet_mean=true
+
+    td_big=data(data_params);
+
     local val_losses = {};
     local val_losses_iter = {};
 
@@ -315,6 +402,7 @@ function testOld(params)
     for i=1,params.iterations do
 
             td:getTrainingData();
+            td_big:getTrainingData();
 
             td.training_set.data=td.training_set.data:cuda();
             td.training_set.label=td.training_set.label:cuda();
@@ -323,17 +411,20 @@ function testOld(params)
             local batch_targets=td.training_set.label;
             
             local outputs=net:forward(batch_inputs);
-            local loss,loss_all = getLoss(outputs,batch_targets);
+            local loss,loss_all = getLossEuclidean(outputs,batch_targets);
             for idx_ind=1,loss_all:size(1) do
                 val_losses_ind[#val_losses_ind+1]=loss_all[idx_ind];
             end
+            
             local outputs_view=outputs:view(outputs:size(1),outputs:size(2)/2,2):clone();
             local batch_inputs_view=batch_inputs:clone():double();
             batch_inputs_view=tps_helper:unMean(batch_inputs_view,td.mean_im,td.std_im)
-            local saveImage=paths.concat(out_dir_images,i..'_');
-            visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,outputs_view:transpose(2,3),{saveImage,'_pred.jpg'},nil,{-1,1},colors);
 
-            -- visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,inputs_view:transpose(2,3),{saveImage,'_gt.jpg'},nil,{-1,1},colors);
+            local saveImage=paths.concat(out_dir_images,i..'_');
+
+            visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,outputs_view:transpose(2,3),{saveImage,'_small.jpg'},nil,{-1,1},colors);  
+
+            visualizer:saveBatchImagesWithKeypoints(td_big.training_set.data,outputs_view:transpose(2,3),{saveImage,'_big.jpg'},td_big.params.imagenet_mean,{-1,1},colors);
 
             val_losses[#val_losses+1]=loss;
             val_losses_iter[#val_losses_iter+1]=i;
@@ -346,8 +437,19 @@ function testOld(params)
 
     end
 
+    val_losses_ind=torch.Tensor(val_losses_ind);
+    print (val_losses_ind:size())
+    if val_losses_ind:size(1)>#td.lines_horse then
+        val_losses_ind=val_losses_ind[{{1,#td.lines_horse}}];
+    end
+    print (val_losses_ind:size())
+    
+    disp_str=string.format("minibatches processed: all, val loss = %6.6f", torch.mean(val_losses_ind))
+    logger:writeString(dump.tostring(disp_str)..'\n');
+    print(disp_str)
+
     npy4th.savenpy(out_file_loss_val, torch.Tensor(val_losses))
-    npy4th.savenpy(out_file_loss_val_ind, torch.Tensor(val_losses_ind))
+    npy4th.savenpy(out_file_loss_val_ind, val_losses_ind)
 
 end
 
@@ -365,6 +467,7 @@ function test(params)
     local out_dir_images=paths.concat(out_dir,'test_images');
     paths.mkdir(out_dir_images);
     local out_file_loss_val=paths.concat(out_dir_images,'loss_final_val.npy');
+    local out_file_loss_val_ind=paths.concat(out_dir_images,'loss_final_val_ind.npy');
     local out_file_log=paths.concat(out_dir_images,'log_test.txt');
     local logger=torch.DiskFile(out_file_log,'w');
 
@@ -383,7 +486,7 @@ function test(params)
     logger:writeString(dump.tostring('done loading network')..'\n');
     -- print ('done loading network');
     -- logger:writeString(dump.tostring(net)..'\n');
-    -- print (net);
+    print (net);
 
     logger:writeString(dump.tostring('making cuda')..'\n');
     -- print ('making cuda');
@@ -420,7 +523,7 @@ function test(params)
     local val_losses = {};
     local val_losses_iter = {};
 
-    
+    local val_losses_ind={};
 
     for i=1,params.iterations do
 
@@ -432,7 +535,10 @@ function test(params)
             local batch_inputs=td.training_set.data;
             local batch_targets=td.training_set.label;
             
-            local loss = doTheForward(batch_inputs,batch_targets,paths.concat(out_dir_images,i..'_'))
+            local loss,loss_all = doTheForwardEuclidean(batch_inputs,batch_targets,paths.concat(out_dir_images,i..'_'))
+            for idx_ind=1,loss_all:size(1) do
+                val_losses_ind[#val_losses_ind+1]=loss_all[idx_ind];
+            end
             -- gradParameters:zero()
             -- local outputs=net:forward(batch_inputs);
             -- local loss = getLoss(outputs,batch_targets);
@@ -446,7 +552,19 @@ function test(params)
             print(disp_str)
 
     end
+    val_losses_ind=torch.Tensor(val_losses_ind);
+    print (val_losses_ind:size())
+    if val_losses_ind:size(1)>#td.lines_horse then
+        val_losses_ind=val_losses_ind[{{1,#td.lines_horse}}];
+    end
+    print (val_losses_ind:size())
+
+    disp_str=string.format("minibatches processed: all, val loss = %6.6f", torch.mean(val_losses_ind))
+    logger:writeString(dump.tostring(disp_str)..'\n');
+    print(disp_str)
+
     npy4th.savenpy(out_file_loss_val, torch.Tensor(val_losses))
+    npy4th.savenpy(out_file_loss_val_ind, val_losses_ind)
 
 end
 
@@ -682,20 +800,22 @@ local epoch_size=56;
 cmd:option('-tps_model_path','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final/model_all_final.dat');
 
 -- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444_fcScratch.dat');
+-- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_fcScratch_halfBack_1e-2/final/model_all_final_kp_part.dat');
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_fcScratch_halfBack_1e-2','directory to write output');
 -- cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
 -- cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
 -- cmd:option('-full_size',false,'whether to downscale between nets');
 
 
-cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_big_halfBack_1e-2','directory to write output');
+-- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
+cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_big_halfBack_1e-2/final/model_all_final_kp_part.dat');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_big_halfBack_1e-2/resume_1e-3','directory to write output');
 cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
 cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
 cmd:option('-full_size',true,'whether to downscale between nets');
 
 cmd:option('-limit',-1,'num of training data to read');
-cmd:option('-iterations',50*epoch_size,'num of iterations to run');
+cmd:option('-iterations',30*epoch_size,'num of iterations to run');
 cmd:option('-saveAfter',10*epoch_size,'num of iterations after which to save model');
 cmd:option('-batchSize',64,'batch size');
 cmd:option('-testAfter',30,'num iterations after which to get validation loss');
@@ -721,7 +841,7 @@ cmd:option('-gpu',1,'gpu to run the training on');
 
 cmd:option('-full_back_prop',false,'whether to back prop through spatial net as well');
 params = cmd:parse(arg)
-main(params);
+-- main(params);
 
 -- cmd:option('-tps_model_path','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final/model_all_final.dat');
 -- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
@@ -746,11 +866,12 @@ main(params);
 
 
 
--- cmd:option('-full_model_path',paths.concat(params.outDir,'final/model_all_final.dat'),'full model path for testing');
--- cmd:option('-iterations',2,'num of iterations to run');
--- cmd:option('-batchSize',100,'batch size');
--- params = cmd:parse(arg)
--- test(params)
+cmd:option('-full_model_path',paths.concat(params.outDir,'final/model_all_final.dat'),'full model path for testing');
+cmd:option('-iterations',2,'num of iterations to run');
+cmd:option('-batchSize',100,'batch size');
+params = cmd:parse(arg)
+print (params.full_model_path);
+test(params)
 
 -- cmd:option('-gpu',2,'gpu to run the training on');
 -- cmd:option('-full_model_path',paths.concat(params.outDir,'intermediate/model_all_1120.dat'),'full model path for testing');
@@ -763,35 +884,51 @@ main(params);
 
 -- cmd:option('-gpu',2,'gpu to run the training on');
 -- cmd:option('-full_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_full_halfBack_llr/final/model_all_final.dat','full model path for testing');
--- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_full_halfBack_llr','directory to write output');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_full_halfBack_llr/euclidean','directory to write output');
 -- cmd:option('-iterations',2,'num of iterations to run');
 -- cmd:option('-batchSize',100,'batch size');
 -- params = cmd:parse(arg)
+-- print (params.full_model_path);
 -- test(params)
 
--- cmd:option('-gpu',2,'gpu to run the training on');
+-- cmd:option('-gpu',1,'gpu to run the training on');
 -- cmd:option('-full_model_path','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_hlr_longer/final/model_all_final.dat','full model path for testing');
--- cmd:option('-outDir','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_hlr_longer','directory to write output');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_hlr_longer/euclidean','directory to write output');
+-- cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
+-- cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
+-- cmd:option('-inputSize',40,'size input');
+-- cmd:option('-iterations',2,'num of iterations to run');
+-- cmd:option('-batchSize',100,'batch size');
+
+-- params = cmd:parse(arg)
+-- print (params.full_model_path);
+-- testOld(params)
+
+-- cmd:option('-full_model_path','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-2/final/model_all_final.dat','full model path for testing');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-2/euclidean','directory to write output');
+-- cmd:option('-inputSize',224,'input size');
 -- cmd:option('-iterations',2,'num of iterations to run');
 -- cmd:option('-batchSize',100,'batch size');
 -- params = cmd:parse(arg)
+-- print (params.full_model_path);
 -- testOld(params)
 
--- cmd:option('-gpu',2,'gpu to run the training on');
 -- cmd:option('-full_model_path','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_orglr_longer/final/model_all_final.dat','full model path for testing');
--- cmd:option('-outDir','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_orglr_longer','directory to write output');
--- cmd:option('-iterations',2,'num of iterations to run');
--- cmd:option('-batchSize',100,'batch size');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_orglr_longer/euclidean','directory to write output');
 -- params = cmd:parse(arg)
+-- print (params.full_model_path);
 -- testOld(params)
 
-
--- cmd:option('-gpu',2,'gpu to run the training on');
--- cmd:option('-full_model_path','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_scratch/final/model_all_final.dat','full model path for testing');
--- cmd:option('-outDir','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_scratch','directory to write output');
--- cmd:option('-iterations',2,'num of iterations to run');
--- cmd:option('-batchSize',100,'batch size');
+-- cmd:option('-full_model_path','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_orglr/final/model_all_final.dat','full model path for testing');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_orglr/euclidean','directory to write output');
 -- params = cmd:parse(arg)
+-- print (params.full_model_path);
+-- testOld(params)
+
+-- cmd:option('-full_model_path','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_scratch/final/model_all_final.dat','full model path for testing');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/temp/vanilla_train_horse_bn_scratch/euclidean','directory to write output');
+-- params = cmd:parse(arg)
+-- print (params.full_model_path);
 -- testOld(params)
 
 
@@ -810,7 +947,7 @@ main(params);
 
 -- cmd:option('-gpu',1,'gpu to run the training on');
 -- cmd:option('-full_model_path','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-3/final/model_all_final.dat');
--- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-3','directory to write output');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-3/euclidean','directory to write output');
 -- cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt')
 -- cmd:option('-iterations',2,'num of iterations to run');
 -- cmd:option('-batchSize',100,'batch size');
@@ -818,6 +955,7 @@ main(params);
 -- cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
 -- cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
 -- params = cmd:parse(arg)
+-- print (params.full_model_path);
 -- testOld(params)
 
 
