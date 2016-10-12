@@ -76,7 +76,7 @@ local dir_models='/home/SSD3/maheen-data/horse_project/models';
 paths.mkdir(dir_models);
 in_file=paths.concat(dir_models,'alexnet.dat');
 -- out_file=paths.concat(dir_models,'conv5_2fc_closeToZero.dat');
-out_file=paths.concat(dir_models,'conv5_2fc_bn_normalXavier.dat');
+out_file=paths.concat(dir_models,'conv5_2fc_bn_normalXavier_128_50.dat');
 
 -- in_file='/home/SSD3/maheen-data/horse_human_fiveKP/intermediate/model_all_200.dat'
 -- local model=torch.load(in_file);
@@ -104,7 +104,7 @@ model_new:add(nn.Linear(4608,128));
 model_new:add(nn.ReLU());
 model_new:add(nn.Dropout(0.5));
 model_new:add(nn.BatchNormalization(128));
-model_new:add(nn.Linear(128,72));
+model_new:add(nn.Linear(128,50));
 -- model_new=model_new:cuda();
 -- print (model_new);
 

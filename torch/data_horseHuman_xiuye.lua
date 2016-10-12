@@ -104,7 +104,7 @@ do
 
     function data:readDataFileNoIm(file_path)
         local file_lines = {};
-        print (file_path);
+        -- print (file_path);
         for line in io.lines(file_path) do 
             local start_idx, end_idx = string.find(line, ' ');
             local img_label=string.sub(line,1,start_idx-1);
@@ -160,37 +160,86 @@ do
     function data:rotateImAndLabel(img_horse,label_horse,img_human,label_human,angles)
         
         -- print ('hflip');
-        
-        
-        local rand=math.random(#angles);
-        local angle=math.rad(angles[rand]);
-        local img_horse=image.rotate(img_horse,angle,"bilinear");
+        local isValid = false;
+        local img_horse_org=img_horse:clone();
+        local label_horse_org=label_horse:clone();
 
-        local img_human_new;
+        local img_human_org=nil;
         if img_human then
-            img_human_new=image.rotate(img_human,angle,"bilinear");
-        else
-            img_human_new=img_human;
+            img_human_org=img_human:clone();
         end
         
-        local rotation_matrix=torch.zeros(2,2);
-        rotation_matrix[1][1]=math.cos(angle);
-        rotation_matrix[1][2]=math.sin(angle);
-        rotation_matrix[2][1]=-1*math.sin(angle);
-        rotation_matrix[2][2]=math.cos(angle);
-        
-        for i=1,label_horse:size(1) do
-            if label_horse[i][3]>0 then
-                local ans = rotation_matrix*torch.Tensor({label_horse[i][2],label_horse[i][1]}):view(2,1);
-                label_horse[i][1]=ans[2][1];
-                label_horse[i][2]=ans[1][1];
+        local label_human_org=label_human:clone();
+        local img_human_new;
 
-                ans = rotation_matrix*torch.Tensor({label_human[i][2],label_human[i][1]}):view(2,1);
-                label_human[i][1]=ans[2][1];
-                label_human[i][2]=ans[1][1];
-            end
-        end
+        local iter=0;
         
+        while not isValid do
+            isValid = true;
+            label_horse= label_horse_org:clone();
+            label_human= label_human_org:clone();
+
+            local rand=math.random(#angles);
+            local angle=math.rad(angles[rand]);
+            img_horse=image.rotate(img_horse_org,angle,"bilinear");
+
+            
+            if img_human then
+                img_human_new=image.rotate(img_human_org,angle,"bilinear");
+            else
+                img_human_new=img_human;
+            end
+            
+            local rotation_matrix=torch.zeros(2,2);
+            rotation_matrix[1][1]=math.cos(angle);
+            rotation_matrix[1][2]=math.sin(angle);
+            rotation_matrix[2][1]=-1*math.sin(angle);
+            rotation_matrix[2][2]=math.cos(angle);
+            
+            for i=1,label_horse:size(1) do
+                if label_horse[i][3]>0 then
+                    local ans = rotation_matrix*torch.Tensor({label_horse[i][2],label_horse[i][1]}):view(2,1);
+                    label_horse[i][1]=ans[2][1];
+                    label_horse[i][2]=ans[1][1];
+
+                    if torch.all(label_horse[i]:ge(-1)) and torch.all(label_horse[i]:le(1)) then
+                        isValid=true;
+                    else
+                        isValid=false;
+                    end
+
+                    ans = rotation_matrix*torch.Tensor({label_human[i][2],label_human[i][1]}):view(2,1);
+                    label_human[i][1]=ans[2][1];
+                    label_human[i][2]=ans[1][1];
+
+                    if isValid and torch.all(label_human[i]:ge(-1)) and torch.all(label_human[i]:le(1)) then
+                        isValid=true;
+                    else
+                        isValid=false;
+                    end
+
+                end
+
+                if not isValid then
+                    break;
+                end
+
+            end
+
+            -- print (angle,isValid,iter);
+            -- print (label_horse,label_human);
+
+            iter=iter+1;
+            if iter==100 then
+                -- print ('BREAKING rotation');
+                label_horse=label_horse_org;
+                img_horse=img_horse_org;
+                label_human=label_human_org;
+                img_human_new=img_human_org;
+                break;
+            end
+
+        end        
         
         return img_horse,label_horse,img_human_new,label_human; 
     end

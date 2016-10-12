@@ -12,8 +12,9 @@ require 'gnuplot';
 dump=require 'dump';
 tps_helper=require 'tps_helper';
 visualize=require 'visualize';
+loss_helper=require 'loss_helper';
 
-function createIntegratedModel(tps_model_path,face_detection_model,full_size)
+function createIntegratedModel(tps_model_path,face_detection_model,full_size,full_model_flag)
     local locnet = torch.load(tps_model_path);
     local tranet=nn.Transpose({2,3},{3,4})
     local concat=nn.ConcatTable()
@@ -45,6 +46,9 @@ function createIntegratedModel(tps_model_path,face_detection_model,full_size)
     local tot_net=nn.Sequential();
     tot_net:add(spanet);
     local kp_net=torch.load(face_detection_model);
+    if full_model_flag then
+        kp_net=kp_net:get(2);
+    end
     tot_net:add(kp_net);
     cudnn.convert(tot_net,cudnn);
 
@@ -62,112 +66,6 @@ function getDownSampleGrid(batchSize)
     out_grids_new=out_grids_new:view(1,out_grids_new:size(1),out_grids_new:size(2),out_grids_new:size(3));
     out_grids_new=torch.repeatTensor(out_grids_new,batchSize,1,1,1);
     return out_grids_new;
-end
-
-function getLossD(pred_output_all,gt_output_all)
-	-- print (pred_output_all:size())
-	-- print (gt_output_all:size());
-	loss_all=torch.zeros(pred_output_all:size()):type(pred_output_all:type());
-
-	for im_idx=1,pred_output_all:size(1) do
-
-		local gt_output=gt_output_all[im_idx];
-		local pred_output=pred_output_all[im_idx];
-
-		local gt_index = gt_output[{{},3}];
-		local gt_output = gt_output[{{},{1,2}}]:clone();
-		gt_output=gt_output:view(gt_output:nElement());
-		
-		local x = pred_output-gt_output;
-		local loss = torch.zeros(x:size(1),1);
-		for i=1,loss:size(1) do
-			local loss_curr=x[i];
-			if gt_index[math.floor((i+1)/2)]<0 then
-				loss[i]=0;
-			else
-                if torch.abs(loss_curr)<1 then
-                    loss[i]=loss_curr;
-				elseif loss_curr<0 then
-					loss[i]=-1;
-				else
-					loss[i]=1;
-				end
-			end
-		end
-        loss_all[im_idx]=loss;
-
-	end
-	return loss_all;
-end
-
-function getLoss(pred_output_all,gt_output_all)
-	loss_all=torch.zeros(pred_output_all:size(1)):type(pred_output_all:type());
-
-	for im_idx=1,pred_output_all:size(1) do
-
-		local gt_output=gt_output_all[im_idx];
-		local pred_output=pred_output_all[im_idx];
-
-		local gt_index=gt_output[{{},3}];
-		local gt_output=gt_output[{{},{1,2}}]:clone();
-		gt_output=gt_output:view(gt_output:nElement());
-		local x = torch.abs(pred_output-gt_output);
-		local loss = torch.zeros(x:size(1));
-		local loss_total=0;
-		for i=1,loss:size(1) do
-			local loss_curr=x[i];
-			if gt_index[math.floor((i+1)/2)]<0 then
-				loss[i]=0;
-			else
-				if loss_curr<1 then
-					loss[i]=loss_curr*loss_curr*0.5;
-				else
-					loss[i]=loss_curr-0.5;
-				end
-				loss_total=loss_total+loss[i];
-                -- if (loss_total>10) then
-                --     print ('____');
-                --     print (i)
-                --     print (gt_index)
-                --     print (loss_total);
-                --     print (pred_output);
-                --     print (gt_output);
-                -- end
-			end
-		end
-
-		loss = loss_total/torch.sum(gt_index:gt(0));
-		loss_all[im_idx]=loss;
-
-	end
-	return torch.mean(loss_all),loss_all;
-end
-
-
-function getLossEuclidean(pred_output_all,gt_output_all)
-    loss_all=torch.zeros(pred_output_all:size(1)):type(pred_output_all:type());
-
-    for im_idx=1,pred_output_all:size(1) do
-
-        local gt_output=gt_output_all[im_idx];
-        local pred_output=pred_output_all[im_idx];
-
-        local gt_index=gt_output[{{},3}];
-        local idx_keep=torch.find(gt_index:gt(0), 1)
-        -- print (pred_output,gt_output,idx_keep)
-        local gt_output=gt_output[{{},{1,2}}]:clone();
-
-        pred_output=pred_output:view(pred_output:size(1)/2,2);
-        -- print (gt_output,pred_output)
-        local loss=torch.pow(torch.sum(torch.pow(pred_output-gt_output,2),2),0.5);
-        local loss_keep=torch.zeros(#idx_keep):type(pred_output:type());
-        for idx_idx_keep=1,#idx_keep do
-            loss_keep[idx_idx_keep]=loss[idx_keep[idx_idx_keep]];
-        end
-        loss_all[im_idx]=torch.mean(loss_keep);
-    end
-
-    return torch.mean(loss_all),loss_all;
 end
 
 function doTheForward(batch_inputs,batch_targets,saveImage)
@@ -212,14 +110,14 @@ function doTheForward(batch_inputs,batch_targets,saveImage)
         local t_pts_view=t_pts:view(t_pts:size(1),t_pts:size(2)/2,2):clone();
         local colors={{255,0,0},{255,255,0},{0,0,255},{0,255,0},{255,0,255}};
    
-        visualizer=Visualize();
+        -- visualize=Visualize();
         t_pts_view=t_pts_view:transpose(2,3)
-        visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,t_pts_view,{saveImage,'_org.jpg'},td.params.imagenet_mean,{-1,1},colors);
-        visualizer:saveBatchImagesWithKeypoints(midoutputs_view,outputs_view:transpose(2,3),{saveImage,'.jpg'},td.params.imagenet_mean,{-1,1},colors);
+        visualize:saveBatchImagesWithKeypoints(batch_inputs_view,t_pts_view,{saveImage,'_org.jpg'},td.params.imagenet_mean,{-1,1},colors);
+        visualize:saveBatchImagesWithKeypoints(midoutputs_view,outputs_view:transpose(2,3),{saveImage,'.jpg'},td.params.imagenet_mean,{-1,1},colors);
     end
 
-    local dloss = getLossD(t_pts,batch_targets);
-    local loss = getLoss(t_pts,batch_targets);
+    local dloss = loss_helper:getLossD_RCNN(t_pts,batch_targets);
+    local loss = loss_helper:getLoss_RCNN(t_pts,batch_targets);
     return loss,dloss,midoutputs,inputs;
 end
 
@@ -266,14 +164,14 @@ function doTheForwardEuclidean(batch_inputs,batch_targets,saveImage)
         local t_pts_view=t_pts:view(t_pts:size(1),t_pts:size(2)/2,2):clone();
         local colors={{255,0,0},{255,255,0},{0,0,255},{0,255,0},{255,0,255}};
    
-        visualizer=Visualize();
+        -- visualize=Visualize();
         t_pts_view=t_pts_view:transpose(2,3)
-        visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,t_pts_view,{saveImage,'_org.jpg'},td.params.imagenet_mean,{-1,1},colors);
-        visualizer:saveBatchImagesWithKeypoints(midoutputs_view,outputs_view:transpose(2,3),{saveImage,'.jpg'},td.params.imagenet_mean,{-1,1},colors);
+        visualize:saveBatchImagesWithKeypoints(batch_inputs_view,t_pts_view,{saveImage,'_org.jpg'},td.params.imagenet_mean,{-1,1},colors);
+        visualize:saveBatchImagesWithKeypoints(midoutputs_view,outputs_view:transpose(2,3),{saveImage,'.jpg'},td.params.imagenet_mean,{-1,1},colors);
     end
 
-    -- local dloss = getLossD(t_pts,batch_targets);
-    local loss,loss_all = getLossEuclidean(t_pts,batch_targets);
+    -- local dloss = loss_helper:getLossD_RCNN(t_pts,batch_targets);
+    local loss,loss_all = loss_helper:getLoss_Euclidean(t_pts,batch_targets);
     return loss,loss_all,midoutputs,inputs;
 end
 
@@ -304,25 +202,6 @@ local fevalScore = function(x)
     
     return loss, gradParameters;
 end
-
--- function plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_plot) 
--- 	gnuplot.pngfigure(out_file_loss_plot)
--- 	-- print (out_file_loss_plot)
--- 	local losses_tensor = torch.Tensor{losses_iter,losses};
---     if #val_losses>0 then
---     	local val_losses_tensor=torch.Tensor{val_losses_iter,val_losses}
--- 		gnuplot.plot({'Train Loss',losses_tensor[1],losses_tensor[2]},{'Val Loss',val_losses_tensor[1],val_losses_tensor[2]});
--- 		gnuplot.grid(true)
--- 	else
--- 		gnuplot.plot({'Train Loss ',losses_tensor[1],losses_tensor[2]});
-
--- 	end
--- 	gnuplot.title('Losses'..losses_iter[#losses_iter])
--- 	gnuplot.xlabel('Iterations');
--- 	gnuplot.ylabel('Loss');
--- 	gnuplot.plotflush();
--- 	-- gnuplot.pngfigure(out_file_loss_plot);
--- end
 
 function testOld(params)
     local data_path=params.data_path;
@@ -397,7 +276,7 @@ function testOld(params)
     local val_losses_ind={};
     local colors={{255,0,0},{255,255,0},{0,0,255},{0,255,0},{255,0,255}};
     
-    local visualizer=Visualize();
+    -- local visualize=Visualize();
 
     for i=1,params.iterations do
 
@@ -411,7 +290,7 @@ function testOld(params)
             local batch_targets=td.training_set.label;
             
             local outputs=net:forward(batch_inputs);
-            local loss,loss_all = getLossEuclidean(outputs,batch_targets);
+            local loss,loss_all = loss_helper:getLoss_Euclidean(outputs,batch_targets);
             for idx_ind=1,loss_all:size(1) do
                 val_losses_ind[#val_losses_ind+1]=loss_all[idx_ind];
             end
@@ -422,9 +301,9 @@ function testOld(params)
 
             local saveImage=paths.concat(out_dir_images,i..'_');
 
-            visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,outputs_view:transpose(2,3),{saveImage,'_small.jpg'},nil,{-1,1},colors);  
+            visualize:saveBatchImagesWithKeypoints(batch_inputs_view,outputs_view:transpose(2,3),{saveImage,'_small.jpg'},nil,{-1,1},colors);  
 
-            visualizer:saveBatchImagesWithKeypoints(td_big.training_set.data,outputs_view:transpose(2,3),{saveImage,'_big.jpg'},td_big.params.imagenet_mean,{-1,1},colors);
+            visualize:saveBatchImagesWithKeypoints(td_big.training_set.data,outputs_view:transpose(2,3),{saveImage,'_big.jpg'},td_big.params.imagenet_mean,{-1,1},colors);
 
             val_losses[#val_losses+1]=loss;
             val_losses_iter[#val_losses_iter+1]=i;
@@ -541,7 +420,7 @@ function test(params)
             end
             -- gradParameters:zero()
             -- local outputs=net:forward(batch_inputs);
-            -- local loss = getLoss(outputs,batch_targets);
+            -- local loss = loss_helper:getLoss_RCNN(outputs,batch_targets);
 
             val_losses[#val_losses+1]=loss;
             val_losses_iter[#val_losses_iter+1]=i;
@@ -626,7 +505,7 @@ function main(params)
     logger:writeString(dump.tostring('loading network')..'\n');
     print ('loading network');
 
-    net=createIntegratedModel(params.tps_model_path,params.face_detection_model_path,params.full_size);
+    net=createIntegratedModel(params.tps_model_path,params.face_detection_model_path,params.full_size,params.full_model_flag);
     net:training();
     
     -- if not params.full_back_prop then
@@ -644,7 +523,7 @@ function main(params)
     logger:writeString(dump.tostring('done loading network')..'\n');
     print ('done loading network');
     -- logger:writeString(dump.tostring(net)..'\n');
-    -- print (net);
+    print (net);
 
     logger:writeString(dump.tostring('making cuda')..'\n');
     print ('making cuda');
@@ -688,7 +567,7 @@ function main(params)
     local val_losses = {};
     local val_losses_iter = {};
 
-    local visualizer=Visualize();
+    -- local visualize=Visualize();
 
     for i=1,params.iterations do
 
@@ -727,7 +606,7 @@ function main(params)
             local loss = doTheForward(batch_inputs,batch_targets)
 		    -- gradParameters:zero()
 		    -- local outputs=net:forward(batch_inputs);
-		    -- local loss = getLoss(outputs,batch_targets);
+		    -- local loss = loss_helper:getLoss_RCNN(outputs,batch_targets);
 
             val_losses[#val_losses+1]=loss;
             val_losses_iter[#val_losses_iter+1]=i;
@@ -765,7 +644,7 @@ function main(params)
         end
 
         if i%params.dispPlotAfter==0 then
-        	visualizer:plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_plot);
+        	visualize:plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_plot);
         end
 
 	end
@@ -782,7 +661,7 @@ function main(params)
     if params.testAfter>0 and #val_losses>0 then
         npy4th.savenpy(out_file_loss_val, torch.Tensor(val_losses))
     end
-    visualizer:plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_plot);
+    visualize:plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_plot);
 end
 
 
@@ -796,26 +675,27 @@ cmd:text('Options')
 local epoch_size=56;
 
 -- cmd:option('-model','/home/SSD3/maheen-data/horse_project/vanilla/vanilla_scratch_bn.dat','model to load')
-
 cmd:option('-tps_model_path','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final/model_all_final.dat');
 
--- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444_fcScratch.dat');
--- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_fcScratch_halfBack_1e-2/final/model_all_final_kp_part.dat');
--- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_fcScratch_halfBack_1e-2','directory to write output');
--- cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
--- cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
--- cmd:option('-full_size',false,'whether to downscale between nets');
+-- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/temp/vanilla_train_bn_check/intermediate/model_all_3444.dat');
+cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_full_small_clean_halfBack_1e-3/final/model_all_final.dat','model to load');
+cmd:option('-full_model_flag',true);
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_full_small_clean_halfBack_1e-3/resume_1e-3','directory to write output');
+cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
+cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
+cmd:option('-full_size',false,'whether to downscale between nets');
 
 
 -- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
-cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_big_halfBack_1e-2/final/model_all_final_kp_part.dat');
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_big_halfBack_1e-2/resume_1e-3','directory to write output');
-cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
-cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
-cmd:option('-full_size',true,'whether to downscale between nets');
+-- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_full_big_clean_halfBack_1e-3/final/model_all_final.dat','model to load');
+-- cmd:option('-full_model_flag',true);
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_allKp_full_big_clean_halfBack_1e-3/resume_1e-3','directory to write output');
+-- cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
+-- cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
+-- cmd:option('-full_size',true,'whether to downscale between nets');
 
 cmd:option('-limit',-1,'num of training data to read');
-cmd:option('-iterations',30*epoch_size,'num of iterations to run');
+cmd:option('-iterations',50*epoch_size,'num of iterations to run');
 cmd:option('-saveAfter',10*epoch_size,'num of iterations after which to save model');
 cmd:option('-batchSize',64,'batch size');
 cmd:option('-testAfter',30,'num iterations after which to get validation loss');
@@ -827,10 +707,13 @@ cmd:option('-dispPlotAfter',30,'num iterations after which to display training l
 
 -- cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_padded/horse/pairs_val.txt')
 -- cmd:option('-data_path','/home/SSD3/maheen-data/horse_project/data_padded/horse/pairs.txt')
-cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt')
-cmd:option('-data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/pairs.txt')
+-- cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt')
+-- cmd:option('-data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/pairs.txt')
 
-cmd:option('learningRate', 1e-2)
+cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
+cmd:option('-data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean.txt')
+
+cmd:option('learningRate', 1e-3)
 cmd:option('learningRateDecay',5e-6)
 cmd:option('beta1', 0.9)
 cmd:option('beta2', 0.999)
@@ -841,7 +724,7 @@ cmd:option('-gpu',1,'gpu to run the training on');
 
 cmd:option('-full_back_prop',false,'whether to back prop through spatial net as well');
 params = cmd:parse(arg)
--- main(params);
+main(params);
 
 -- cmd:option('-tps_model_path','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final/model_all_final.dat');
 -- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
@@ -859,12 +742,6 @@ params = cmd:parse(arg)
 -- cmd:option('-batchSize',100,'batch size');
 -- cmd:option('-testAfter',1,'num iterations after which to get validation loss');
 -- cmd:option('-dispAfter',1,'num iterations after which to display training loss');
-
-
--- params = cmd:parse(arg)
--- main(params);
-
-
 
 cmd:option('-full_model_path',paths.concat(params.outDir,'final/model_all_final.dat'),'full model path for testing');
 cmd:option('-iterations',2,'num of iterations to run');

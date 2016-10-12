@@ -1,0 +1,79 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_horseHuman_xiuye';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+
+
+function getLossD(pred_output,gt_output)
+	local lossD=pred_output-gt_output
+	lossD=torch.mul(lossD,2);
+	return lossD;
+end
+
+-- path_to_model='/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final/model_all_final.dat';
+path_to_model='/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier.dat';
+net=torch.load(path_to_model);
+net=net:cuda();
+
+print (net);
+
+horse_data_path='/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean.txt';
+human_data_path='/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean.txt';
+batchSize=64;
+num_ctrl_pts=36;
+size_out=224;
+
+local data_params={file_path_horse=horse_data_path,
+                    file_path_human=human_data_path,
+                    humanImage=false,
+                    limit=nil,
+                    augmentation=false};
+
+td = data_horseHuman(data_params);
+td.params.input_size = {size_out,size_out};
+td.batch_size = batchSize;        
+
+td:getTrainingData();
+-- print (td.training_set_horse.data:size());
+
+td.training_set_human.label=td.training_set_human.label:cuda();
+td.training_set_horse.label=td.training_set_horse.label:cuda();
+-- td.training_set_human.data=td.training_set_human.data:cuda();
+td.training_set_horse.data=td.training_set_horse.data:cuda();
+
+local horse_labels,human_labels,batch_inputs,_,_=td:getBatchPoints()
+tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
+tps=tps:cuda();
+net:add(tps);
+
+net=net:cuda();
+
+local gt_output=tps:getGTOutput(human_labels,horse_labels);
+local batch_targets = gt_output:clone();
+local outputs=net:forward(batch_inputs);
+local dloss = getLossD(outputs,batch_targets);
+net:backward(batch_inputs, dloss)
+
+    
+
+ratios={};
+
+for layer_num=1,#net do
+	layer_curr=net:get(layer_num);
+	-- print (layer_curr);
+	if layer_curr.weight then
+		
+		local weight_norm=torch.norm(layer_curr.weight);
+		local grad_norm=torch.norm(layer_curr.gradWeight);
+		local ratio=weight_norm/grad_norm;
+		ratios[#ratios+1]=ratio;
+		print (layer_curr,layer_num,ratio);
+	end
+end
+

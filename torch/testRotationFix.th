@@ -10,26 +10,56 @@ npy4th=require 'npy4th';
 require 'torchx';
 require 'gnuplot';
 dump=require 'dump';
-
+require 'data_horseHuman_xiuye';
+visualize=require 'visualize';
 
 function main(params)
-	
-	local data_params={file_path=params.val_data_path,
-	                    batch_size=params.batchSize,
-	                    mean_file=params.mean_im_path,
-	                    std_file=params.std_im_path,
-	                    augmentation=true,
-	                    limit=params.limit};
+    
+    local data_params={file_path=params.val_data_path,
+                        batch_size=params.batchSize,
+                        mean_file=params.mean_im_path,
+                        std_file=params.std_im_path,
+                        augmentation=true,
+                        limit=params.limit};
 
 
-	vd=data(data_params);
-	vd.params.angles={-45,45}
-	for i=1,params.iterations do
-		print ('ITERATION',i);
-		vd:getTrainingData();
-	end
+    vd=data(data_params);
+    vd.params.angles={-45,0,45}
+    for i=1,params.iterations do
+        print ('ITERATION',i);
+        vd:getTrainingData();
+    end
 
 end
+
+function mainHorseHuman(params)
+    local data_params={file_path_horse=params.horse_data_path,
+                        file_path_human=params.human_data_path,
+                        augmentation=true,
+                        humanImage=true,
+                        limit=params.limit};
+
+    local size_out=224;
+    td=data_horseHuman(data_params);
+    td.params.input_size={size_out,size_out};
+    td.batch_size=params.batchSize;
+
+
+    td.params.angles={-45,45}
+    for i=1,params.iterations do
+        print ('ITERATION',i);
+        td:getTrainingData();
+    end
+
+    local out_dir =params.outDir;
+    paths.mkdir(out_dir);
+    visualize:saveBatchImagesWithKeypoints(td.training_set_horse.data,td.training_set_horse.label[{{},{},{1,2}}]:transpose(2,3),
+                                            {paths.concat(out_dir,'1_'),'_horse.jpg'},td.params.mean,{-1,1});
+    visualize:saveBatchImagesWithKeypoints(td.training_set_human.data,td.training_set_human.label[{{},{},{1,2}}]:transpose(2,3),
+                                            {paths.concat(out_dir,'1_'),'_human.jpg'},td.params.mean,{-1,1});
+    
+end
+
 
 
 cmd = torch.CmdLine()
@@ -40,5 +70,12 @@ cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40
 cmd:option('-limit',3,'num of training data to read');
 cmd:option('-iterations',1,'num of iterations to run');
 
+cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full.txt')
+cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_clean_full.txt')
+cmd:option('-outDir','/home/SSD3/maheen-data/temp/checkRotation');
+
+
+
+
 params = cmd:parse(arg)
-main(params);
+mainHorseHuman(params);

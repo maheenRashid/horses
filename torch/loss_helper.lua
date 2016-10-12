@@ -66,6 +66,17 @@ do
         print ('TO DO');
     end
 
+    function Loss_Helper:getLoss_EuclideanTPS(pred_output_all,gt_output_all)
+        loss_all=torch.zeros(#pred_output_all):type(pred_output_all[1]:type());
+        for im_idx=1,#pred_output_all do
+            local gt_output=gt_output_all[im_idx];
+            local pred_output=pred_output_all[im_idx];
+            local loss=torch.pow(torch.sum(torch.pow(pred_output-gt_output,2),1),0.5);
+            loss_all[im_idx]=torch.mean(loss);
+        end
+        return torch.mean(loss_all),loss_all;
+    end
+
     function Loss_Helper:getLoss_Euclidean(pred_output_all,gt_output_all)
         loss_all=torch.zeros(pred_output_all:size(1)):type(pred_output_all:type());
 
