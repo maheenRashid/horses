@@ -213,7 +213,7 @@ function test(params)
             local batch_inputs_view=batch_inputs:clone():double();
             batch_inputs_view=tps_helper:unMean(batch_inputs_view,td.mean_im,td.std_im)
             local saveImage=paths.concat(out_dir_images,i..'_');
-            visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,outputs_view:transpose(2,3),{saveImage,'_pred.jpg'},nil,{-1,1},colors);
+            visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,outputs_view:transpose(2,3),{saveImage,'_org.jpg'},nil,{-1,1},colors);
 
             -- visualizer:saveBatchImagesWithKeypoints(batch_inputs_view,inputs_view:transpose(2,3),{saveImage,'_gt.jpg'},nil,{-1,1},colors);
 
@@ -444,7 +444,8 @@ cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_big_
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_big_fcScratch_1e-2/resume','directory to write output');
 
 -- cmd:option('-model','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-2/final/model_all_final.dat');
--- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-2/resume_1e-3');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-2/resume_1e-3');
+
 cmd:option('-inputSize',224,'size of input image');
 cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
 cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
@@ -485,7 +486,7 @@ cmd:option('-gpu',1,'gpu to run the training on');
 cmd:text()
 
 params = cmd:parse(arg)
-main(params);
+-- main(params);
 
 cmd:option('-iterations',2,'num of iterations to run');
 cmd:option('-batchSize',100,'batch size');

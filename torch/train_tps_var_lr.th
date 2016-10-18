@@ -262,8 +262,12 @@ function getOptimStateTotal(params,layer_pivot,logger)
         end
 
         local learningRate_curr=params.learningRate;
-        if layer_num>layer_pivot then
-            learningRate_curr=learningRate_curr*10;
+        if layer_num<=layer_pivot then
+            if params.divisor==0 then
+                learningRate_curr=0;
+            else
+                learningRate_curr=learningRate_curr/params.divisor
+            end
         end
 
         local optimState_curr={learningRate=learningRate_curr,
@@ -355,7 +359,7 @@ function main(params)
     parameters, gradParameters = net:parameters();
     print (#parameters);
     
-    local optimStateTotal= getOptimStateTotal(params,11,logger);
+    local optimStateTotal= getOptimStateTotal(params,10,logger);
     
 
     logger:writeString(dump.tostring('loading done')..'\n');
@@ -394,7 +398,7 @@ function main(params)
             if i%params.decreaseAfter==0 then
                 params.learningRate=params.learningRate/10;
                 optimState.learningRate=params.learningRate;
-                optimStateTotal=getOptimStateTotal(params,11,logger);
+                optimStateTotal=getOptimStateTotal(params,10,logger);
             end
         end
 
@@ -490,7 +494,7 @@ cmd:text('Options')
 local epoch_size=273;
 
 
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_25_small_declr','directory to write output');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_25_1e-2_0','directory to write output');
 
 cmd:option('-num_ctrl_pts',25,'num of training data to read');
 cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50.dat','model to load')
@@ -501,7 +505,7 @@ cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_no
 
 cmd:option('-size_out',224,'num of training data to read');
 cmd:option('-limit',-1,'num of training data to read');
-cmd:option('-iterations',12*epoch_size,'num of iterations to run');
+cmd:option('-iterations',10*epoch_size,'num of iterations to run');
 cmd:option('-saveAfter',2*epoch_size,'num of iterations after which to save model');
 cmd:option('-batchSize',64,'batch size');
 cmd:option('-testAfter',30,'num iterations after which to get validation loss');
@@ -513,24 +517,25 @@ cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_che
 cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full.txt')
 cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean_full.txt')
 
-cmd:option('learningRate', 1e-3)
+cmd:option('learningRate', 1e-2)
 cmd:option('learningRateDecay',5e-6)
+cmd:option('divisor',0);
 cmd:option('beta1', 0.9)
 cmd:option('beta2', 0.999)
 cmd:option('epsilon', 1e-8)
 cmd:option('augmentation' , true);
 cmd:option('-gpu',1,'gpu to run the training on');
 cmd:option('-debug',false,'debug mode');
-cmd:option('-decreaseAfter',4*epoch_size)
+cmd:option('-decreaseAfter',5*epoch_size)
 -- 5*epoch_size);
 
--- params = cmd:parse(arg)
--- main(params);
+params = cmd:parse(arg)
+main(params);
 
 -- cmd:option('-outDir','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final_model','directory to write output');
 
--- cmd:option('-model',paths.concat(params.outDir,'final/model_all_final.dat'));
--- cmd:option('-num_ctrl_pts',36,'num of training data to read');
+cmd:option('-model',paths.concat(params.outDir,'final/model_all_final.dat'));
+-- cmd:option('-num_ctrl_pts',25,'num of training data to read');
 -- cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_64/intermediate/model_all_1365.dat')
 cmd:option('-out_dir_images','test_images');
 cmd:option('-iterations',2,'num of iterations to run');

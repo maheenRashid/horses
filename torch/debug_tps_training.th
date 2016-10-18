@@ -1,0 +1,51 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_aflw';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+require 'gnuplot';
+dump=require 'dump';
+tps_helper=require 'tps_helper';
+visualize=require 'visualize';
+loss_helper=require 'loss_helper';
+
+
+function saveParameters(model_path,out_dir,n_bins)
+	local model_curr=torch.load(model_path);
+	local parameters,gradParameters=model_curr:parameters();
+	paths.mkdir(out_dir);
+	for i=1,#parameters do
+		local out_file=paths.concat(out_dir,''..i..'.npy');
+		local out_file_hist=paths.concat(out_dir,''..i..'.png');
+		local param_rel=parameters[i]:double();
+		npy4th.savenpy(out_file,param_rel);
+		visualize:plotHist(param_rel,n_bins,out_file_hist);
+	end
+end
+
+
+-- tps_pre_training='/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50.dat';
+-- tps_post_training='/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_25_small_declr/final/model_all_final.dat';
+tps_post_training='/home/SSD3/maheen-data/horse_project/tps_25_1e-2_0/final/model_all_final.dat';
+
+-- tps_pre_training='/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat';
+-- tps_post_training='/home/SSD3/maheen-data/horse_project/vanilla_ft_horse_1e-2/resume_1e-3/final/model_all_final.dat';
+
+out_dir_meta='/home/SSD3/maheen-data/temp/analyze_tps';
+n_bins=100;
+paths.mkdir(out_dir_meta);
+-- saveParameters(tps_pre_training,paths.concat(out_dir_meta,'vanilla_pre_horse'),n_bins);
+saveParameters(tps_post_training,paths.concat(out_dir_meta,'tps_post_128_50_0_1e-2'),n_bins);
+
+
+-- model_pre=torch.load(tps_pre_training);
+-- model_pre=model_pre:double();
+-- model_post=torch.load(tps_post_training);
+-- model_post=model_post:double();
+
+

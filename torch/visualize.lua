@@ -95,6 +95,23 @@ do
         -- gnuplot.pngfigure(out_file_loss_plot);
     end
 
+    function Visualize:plotHist(vals,n_bins,out_file) 
+        gnuplot.pngfigure(out_file)
+        local str_shape='';
+        for idx_size_curr=1,#vals:size() do
+            local size_curr = vals:size()[idx_size_curr];
+
+            str_shape=str_shape..' '..size_curr;
+        end
+        gnuplot.hist(vals:view(vals:nElement()),n_bins)
+        gnuplot.title('Parameters'..str_shape)
+        gnuplot.xlabel('Values');
+        gnuplot.ylabel('Frequency');
+        gnuplot.plotflush();
+        -- gnuplot.pngfigure(out_file_loss_plot);
+    end
+
+
 end    
 
 return Visualize;
