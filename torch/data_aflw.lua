@@ -29,6 +29,8 @@ do
         self.mean_im=image.load(self.mean_file)*255;
         self.std_im=image.load(self.std_file)*255;
 
+
+
         self.training_set={};
         
         self.lines_horse=self:readDataFile(self.file_path);
@@ -129,8 +131,13 @@ do
 
             local rand=math.random(#angles);
             local angle=math.rad(angles[rand]);
+
+            local rot = torch.ones(img_horse_org:size());
+            rot=image.rotate(rot,angle,"simple");
+
             img_horse=image.rotate(img_horse_org,angle,"bilinear");
-            
+            img_horse[rot:eq(0)]=img_horse_org[rot:eq(0)];
+
             local rotation_matrix=torch.zeros(2,2);
             rotation_matrix[1][1]=math.cos(angle);
             rotation_matrix[1][2]=math.sin(angle);

@@ -429,7 +429,7 @@ function main(params)
         end
 
         if i%params.testAfter==0 and params.testAfter>0 then 
-            -- net:evaluate();
+            net:evaluate();
             vd:getTrainingData();
             vd.training_set_horse.data=vd.training_set_horse.data:cuda();
             vd.training_set_human.label=vd.training_set_human.label:cuda();
@@ -446,7 +446,7 @@ function main(params)
             val_losses[#val_losses+1]=loss;
             val_losses_iter[#val_losses_iter+1]=i;
 
-            -- net:training();
+            net:training();
             disp_str=string.format("minibatches processed: %6s, val loss = %6.6f", i, val_losses[#val_losses])
             logger:writeString(dump.tostring(disp_str)..'\n');
             print(disp_str)
@@ -494,7 +494,8 @@ cmd:text('Options')
 local epoch_size=273;
 
 
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_25_1e-2_0','directory to write output');
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_25_1e-2_0','directory to write output');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_25_varlr_fixEvaluate_rotFix','directory to write output');
 
 cmd:option('-num_ctrl_pts',25,'num of training data to read');
 cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50.dat','model to load')
@@ -512,21 +513,21 @@ cmd:option('-testAfter',30,'num iterations after which to get validation loss');
 cmd:option('-dispAfter',1,'num iterations after which to display training loss');
 cmd:option('-dispPlotAfter',30,'num iterations after which to display training loss');
 
-cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
-cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt')
-cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full.txt')
-cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean_full.txt')
+cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean_padded.txt')
+cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean_padded.txt')
+cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full_padded.txt')
+cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean_full_padded.txt')
 
 cmd:option('learningRate', 1e-2)
 cmd:option('learningRateDecay',5e-6)
-cmd:option('divisor',0);
+cmd:option('divisor',10);
 cmd:option('beta1', 0.9)
 cmd:option('beta2', 0.999)
 cmd:option('epsilon', 1e-8)
 cmd:option('augmentation' , true);
 cmd:option('-gpu',1,'gpu to run the training on');
 cmd:option('-debug',false,'debug mode');
-cmd:option('-decreaseAfter',5*epoch_size)
+cmd:option('-decreaseAfter',2*epoch_size)
 -- 5*epoch_size);
 
 params = cmd:parse(arg)

@@ -8,9 +8,12 @@ do
         self.limit=args.limit;
         self.humanImage=args.humanImage;
         self.augmentation=args.augmentation;
+        self.batch_size=args.batch_size;
+        self.mean_file=args.mean_file;
+        self.std_file=args.std_file;
         print ('self.augmentation',self.augmentation);
 
-        self.batch_size=10;
+        -- self.batch_size=10;
         -- self.batch_size_human=10;
         -- _seg=32;
         -- self.batch_size_positive_score=16;
@@ -21,8 +24,18 @@ do
         -- self.humanImage=false;
         self.params={input_size={32,32},
                     mean={122,117,104},
+                    imagenet_mean={122,117,104},
                     labels_shape={5,3},
                     angles={-10,-5,0,5,10}};
+
+        if args.input_size then
+            self.params.input_size=args.input_size
+        end
+
+        if self.mean_file and self.std_file then
+           self.mean_im=image.load(self.mean_file)*255;
+            self.std_im=image.load(self.std_file)*255;
+        end 
 
         self.training_set_horse={};
         self.training_set_human={};
@@ -183,7 +196,11 @@ do
             local angle=math.rad(angles[rand]);
             img_horse=image.rotate(img_horse_org,angle,"bilinear");
 
-            
+            local rot = torch.ones(img_horse_org:size());
+            rot=image.rotate(rot,angle,"simple");
+
+            img_horse[rot:eq(0)]=img_horse_org[rot:eq(0)];
+
             if img_human then
                 img_human_new=image.rotate(img_human_org,angle,"bilinear");
             else

@@ -100,8 +100,17 @@ do
         return torch.mean(loss_all),loss_all;
     end
 
+    function Loss_Helper:getLossD_L2(pred_output,gt_output)
+        local lossD=pred_output-gt_output
+        lossD=torch.mul(lossD,2);
+        return lossD;
+    end
 
-
+    function Loss_Helper:getLoss_L2(pred_output,gt_output)
+        local loss=torch.pow(pred_output-gt_output,2);
+        loss=torch.mean(loss);
+        return loss;
+    end
     
 end
 
