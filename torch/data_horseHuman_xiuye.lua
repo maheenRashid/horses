@@ -194,15 +194,19 @@ do
 
             local rand=math.random(#angles);
             local angle=math.rad(angles[rand]);
+
+            local rand_human=math.random(#angles);
+            local angle_human=math.rad(angles[rand_human]);
+            
             img_horse=image.rotate(img_horse_org,angle,"bilinear");
+            -- print ('no rotfix');
+            -- local rot = torch.ones(img_horse_org:size());
+            -- rot=image.rotate(rot,angle,"simple");
 
-            local rot = torch.ones(img_horse_org:size());
-            rot=image.rotate(rot,angle,"simple");
-
-            img_horse[rot:eq(0)]=img_horse_org[rot:eq(0)];
+            -- img_horse[rot:eq(0)]=img_horse_org[rot:eq(0)];
 
             if img_human then
-                img_human_new=image.rotate(img_human_org,angle,"bilinear");
+                img_human_new=image.rotate(img_human_org,angle_human,"bilinear");
             else
                 img_human_new=img_human;
             end
@@ -213,6 +217,12 @@ do
             rotation_matrix[2][1]=-1*math.sin(angle);
             rotation_matrix[2][2]=math.cos(angle);
             
+            local rotation_matrix_human=torch.zeros(2,2);
+            rotation_matrix_human[1][1]=math.cos(angle_human);
+            rotation_matrix_human[1][2]=math.sin(angle_human);
+            rotation_matrix_human[2][1]=-1*math.sin(angle_human);
+            rotation_matrix_human[2][2]=math.cos(angle_human);
+
             for i=1,label_horse:size(1) do
                 if label_horse[i][3]>0 then
                     local ans = rotation_matrix*torch.Tensor({label_horse[i][2],label_horse[i][1]}):view(2,1);
@@ -225,7 +235,7 @@ do
                         isValid=false;
                     end
 
-                    ans = rotation_matrix*torch.Tensor({label_human[i][2],label_human[i][1]}):view(2,1);
+                    ans = rotation_matrix_human*torch.Tensor({label_human[i][2],label_human[i][1]}):view(2,1);
                     label_human[i][1]=ans[2][1];
                     label_human[i][2]=ans[1][1];
 

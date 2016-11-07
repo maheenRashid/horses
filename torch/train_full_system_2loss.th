@@ -308,62 +308,30 @@ function doTheUpdateDualLoss(optimMethod,optimStateTotal,padTPS,full_back_prop)
     local grad_mid=net:get(2):backward(midoutputs, dloss);
 
     local loss_mid;
+    
     if full_back_prop then
+        
+        local std_rep=td.std_im:view(1,td.std_im:size(1),td.std_im:size(2),td.std_im:size(3)):clone();
+        std_rep=torch.repeatTensor(std_rep,grad_mid:size(1),1,1,1):type(grad_mid:type());
+        grad_mid=grad_mid:cdiv(std_rep);    
+    
         if padTPS then        
-            local std_rep=td.std_im:view(1,td.std_im:size(1),td.std_im:size(2),td.std_im:size(3)):clone();
-            std_rep=torch.repeatTensor(std_rep,grad_mid:size(1),1,1,1):type(grad_mid:type());
-            grad_mid=grad_mid:cdiv(std_rep);    
-            
-            
-            local gt_output = tps_layer:getGTOutput(human_labels,horse_labels);
-            local batch_targets = gt_output:clone();
-            
-            local lossD_mid=loss_helper:getLossD_L2(net:get(1):get(1):get(2).output,batch_targets);
-            loss_mid=loss_helper:getLoss_L2(net:get(1):get(1):get(2).output,batch_targets);
-
-            -- net:get(1):backward(inputs, grad_mid);
             local grad_mid_bil = net:get(1):get(3):backward(temp,grad_mid);
             local grad_mid_tps = net:get(1):get(2):backward({bil_input,tps_output},grad_mid_bil);
-            -- print (net:get(1):get(2),grad_mid_bil:size(),bil_input:size(),tps_output:size())
-            -- print (grad_mid_tps);
             net:get(1):get(1):get(1):backward(inputs,grad_mid_tps[1]);
-
             net:get(1):get(1):get(2):backward(inputs,grad_mid_tps[2]);
+        else   
+            net:get(1):backward(inputs, grad_mid);
+        end
 
-            if params.dual then
-                net:get(1):get(1):get(2):backward(inputs,lossD_mid);
-            end
-        else
-            local std_rep=td.std_im:view(1,td.std_im:size(1),td.std_im:size(2),td.std_im:size(3)):clone();
-            std_rep=torch.repeatTensor(std_rep,grad_mid:size(1),1,1,1):type(grad_mid:type());
-            grad_mid=grad_mid:cdiv(std_rep);    
-            
+        if params.dual then
             local gt_output = tps_layer:getGTOutput(human_labels,horse_labels);
-            local batch_targets = gt_output:clone();
-            -- print (net:get(1):get(1):get(2).output:size());
-            -- print (gt_output:size())
+            local batch_targets = gt_output:clone();            
             local lossD_mid=loss_helper:getLossD_L2(net:get(1):get(1):get(2).output,batch_targets);
             loss_mid=loss_helper:getLoss_L2(net:get(1):get(1):get(2).output,batch_targets);
-
-            net:get(1):backward(inputs, grad_mid);
-            if params.dual then
-                net:get(1):get(1):get(2):backward(inputs,lossD_mid);
-            end
+            net:get(1):get(1):get(2):backward(inputs,lossD_mid);
         end
     end
-
-    -- local midoutputs;
-    -- local tps_output;
-    -- local temp;
-    -- local bil_input;
-    -- if padTPS then
-    --     local tps_output = net:get(1):get(1):get(2):forward(inputs);
-    --     local bil_input = net:get(1):get(1):get(1):forward(inputs);
-    --     tps_output[tps_output:le(-1)]=-1;
-    --     tps_output[tps_output:ge(1)]=1;
-    --     local temp=net:get(1):get(2):forward{bil_input,tps_output};
-    --     midoutputs=net:get(1):get(3):forward(temp);
-
 
     
     for layer_num =1, #parameters do
@@ -389,7 +357,8 @@ function test(params)
     val_data_path= params.val_data_path
 
     paths.mkdir(out_dir);
-    local out_dir_images=paths.concat(out_dir,'test_images');
+    local out_dir_images=params.outDirTest;
+    -- paths.concat(out_dir,'test_images');
     paths.mkdir(out_dir_images);
     local out_file_loss_val=paths.concat(out_dir_images,'loss_final_val.npy');
     local out_file_loss_val_ind=paths.concat(out_dir_images,'loss_final_val_ind.npy');
@@ -745,10 +714,12 @@ cmd:text('Train Full network')
 cmd:text()
 cmd:text('Options')
 
-local epoch_size=56;
+local epoch_size=7;
+-- 56;
 
--- cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/tps_25_varlr_fixEvaluate/final/model_all_final.dat');
-cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/tps_25_varlr_fixEvaluate_rotFix/final/model_all_final.dat');
+cmd:option('-tps_model_path','temp');
+    -- '/home/SSD3/maheen-data/horse_project/tps_25_varlr_fixEvaluate/final/model_all_final.dat');
+-- cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/tps_25_varlr_fixEvaluate_rotFix/final/model_all_final.dat');
 
 -- cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withTPS.dat');
 cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
@@ -766,29 +737,38 @@ cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/va
 
 -- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100/final/model_all_final.dat');
 -- cmd:option('-full_model_flag',true);
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100_noGray_halfback','directory to write output');
-cmd:option('-full_back_prop',false,'whether to back prop through spatial net as well');
+cmd:option('-outDir','temp');
+    -- '/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100_withGray_fullback_padded','directory to write output');
+cmd:option('-full_back_prop',true,'whether to back prop through spatial net as well');
 
-cmd:option('padTPS',true,'no gray tps');
-
-
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100_withGray_halfback','directory to write output');
-cmd:option('-full_back_prop',false,'whether to back prop through spatial net as well');
 cmd:option('padTPS',false,'no gray tps');
+
+
+
+-- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100_withGray_halfback/final/model_all_final.dat');
+-- cmd:option('-full_model_flag',true);
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100_withGray_halfback/resume_1e-3','directory to write output');
+-- cmd:option('-full_back_prop',false,'whether to back prop through spatial net as well');
+-- cmd:option('padTPS',false,'no gray tps');
+
+
+-- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100_withGray_halfback','directory to write output');
+-- cmd:option('-full_back_prop',false,'whether to back prop through spatial net as well');
+-- cmd:option('padTPS',false,'no gray tps');
 
 
 cmd:option('learningRate', 1e-2)
 cmd:option('multiplierBottom',1/100);
-cmd:option('multiplierMid',1/100);
+cmd:option('multiplierMid',1/10);
 
 
 cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
 cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
-cmd:option('-full_size',true,'whether to downscale between nets');
+cmd:option('-full_size',true,'true when on 224');
 
 cmd:option('-limit',-1,'num of training data to read');
-cmd:option('-iterations',100*epoch_size,'num of iterations to run');
-cmd:option('-saveAfter',20*epoch_size,'num of iterations after which to save model');
+cmd:option('-iterations',150*epoch_size,'num of iterations to run');
+cmd:option('-saveAfter',30*epoch_size,'num of iterations after which to save model');
 cmd:option('-batchSize',64,'batch size');
 cmd:option('-testAfter',30,'num iterations after which to get validation loss');
 cmd:option('-dispAfter',1,'num iterations after which to display training loss');
@@ -799,10 +779,12 @@ cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_2
 cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
 
 
-cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean_padded.txt')
+cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
 -- cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean_padded.txt')
-cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_padded.txt')
-cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean_padded.txt')
+cmd:option('-horse_data_path','temp');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_padded.txt')
+cmd:option('-human_data_path','temp');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean_padded.txt')
 
 
 cmd:option('dual',true);
@@ -821,9 +803,11 @@ params = cmd:parse(arg)
 main(params);
 
 cmd:option('-full_model_path',paths.concat(params.outDir,'final/model_all_final.dat'),'full model path for testing');
+    -- ,'temp');
 cmd:option('-iterations',2,'num of iterations to run');
-cmd:option('-batchSize',100,'batch size');
-
+cmd:option('-batchSize',50,'batch size');
+cmd:option('-outDirTest',paths.concat(params.outDir,'test_images'));
+    -- 'temp');
 params = cmd:parse(arg)
 print (params.full_model_path);
 test(params)

@@ -45,7 +45,7 @@ function mainHorseHuman(params)
     td.batch_size=params.batchSize;
 
 
-    td.params.angles={-45,45}
+    -- td.params.angles={-45,45}
     for i=1,params.iterations do
         print ('ITERATION',i);
         td:getTrainingData();
@@ -64,15 +64,15 @@ end
 
 cmd = torch.CmdLine()
 cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_val.txt')
-cmd:option('-batchSize',3,'batch size');
+cmd:option('-batchSize',10,'batch size');
 cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png');
 cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png');
-cmd:option('-limit',3,'num of training data to read');
+cmd:option('-limit',10,'num of training data to read');
 cmd:option('-iterations',1,'num of iterations to run');
 
 cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full.txt')
 cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_clean_full.txt')
-cmd:option('-outDir','/home/SSD3/maheen-data/temp/checkRotation');
+cmd:option('-outDir','/home/SSD3/maheen-data/temp/checkDualRotation');
 
 
 

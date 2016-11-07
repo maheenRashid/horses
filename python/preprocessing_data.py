@@ -40,7 +40,7 @@ def createParams(type_Experiment):
 
     return params;
 
-def parseAnnoFile(path_txt,path_pre=None,face=False):
+def parseAnnoFile(path_txt,path_pre=None,face=False,sheep=False):
     face_data=util.readLinesFromFile(path_txt);
     
     path_im=[];
@@ -48,7 +48,13 @@ def parseAnnoFile(path_txt,path_pre=None,face=False):
     anno_points=[];
 
     for line_curr in face_data:
-        line_split=line_curr.split(' ');
+        if sheep:
+            line_split=line_curr.rsplit(' ',19);
+            # print line_split;
+            # raw_input();
+        else:
+            line_split=line_curr.split(' ');
+
         pts=[float(str_curr) for str_curr in line_split[1:]];
         pts=[int(str_curr) for str_curr in pts]
         if path_pre is not None:
@@ -226,6 +232,8 @@ def script_makeBboxPairFiles(params):
 
     if type_data=='face':
         path_im,bbox,anno_points=parseAnnoFile(path_txt,path_pre,face=True);
+    elif type_data=='sheep':
+        path_im,bbox,anno_points=parseAnnoFile(path_txt,path_pre,sheep=True);
     else:
         path_im,bbox,anno_points=parseAnnoFile(path_txt,path_pre,face=False);
 
@@ -234,6 +242,9 @@ def script_makeBboxPairFiles(params):
     for idx,path_im_curr,bbox_curr,key_pts in zip(range(len(path_im)),path_im,bbox,anno_points):    
         path_curr,file_name=os.path.split(path_im_curr);
         file_name=file_name[:file_name.rindex('.')];
+        if type_data=='sheep':
+            file_name=file_name.replace(' ','_');
+
         path_curr=path_curr.split('/');
 
         if type_data=='horse':
@@ -241,6 +252,8 @@ def script_makeBboxPairFiles(params):
                 path_pre_curr=path_curr[-2];
             else:
                 path_pre_curr=path_curr[-1];
+        elif type_data=='sheep':
+            path_pre_curr='_'.join(path_curr[-2:])
         else:
             path_pre_curr=path_curr[-1];
 
@@ -381,34 +394,60 @@ def makeMatchFile(params):
     threshold = params.threshold;
 
     face_data=util.readLinesFromFile(face_data_file);
-    face_data=[' '.join(line_curr.split(' ')[:num_neighbors]) for line_curr in face_data];
+    face_data=[' '.join(line_curr.split(' ')[:5]) for line_curr in face_data];
     
     matches_list=util.readLinesFromFile(matches_file);
     matches_split=[match_curr.split(' ') for match_curr in matches_list];
-    horse_list=[match_split[0] for match_split in matches_split];
+    for idx_match_split,match_split in enumerate(matches_split):
+        if not match_split[1].startswith('/home/'):
+            # print match_split;
+            idx=[idx+1 for idx,l in enumerate(match_split[1:]) if l.startswith('/home/')];
+            idx=idx[0];
+            pre=' '.join(match_split[:idx]);
+            post=match_split[idx:];
+            match_split_curr=[pre]+post;
+            # print match_split_curr;
+            # print len(match_split_curr)
+            matches_split[idx_match_split]=match_split_curr;
+            # raw_input();
+        # if len(match_split)>26:
+        #     print match_split;
+
+    # len_split=[len(a) for a in matches_split];
+    # print set(len_split)
+    # raw_input();
+    # horse_list=[match_split[0] for match_split in matches_split];
 
     
     match_data=[];
     missing_files=[];
-    for match_split in matches_split:
-        match_split_new=[match_split[0]];
+    for idx_match_split,match_split in enumerate(matches_split):
+        # print 'LEN',len(matches_list[idx_match_split]);
+        # match_split_new=[match_split[0]];
 
         horse_path,horse_file_name=os.path.split(match_split[0]);
+        # print match_split[0]
         horse_file_name=horse_file_name[:horse_file_name.rindex('.')];
-        horse_path=horse_path.split('/');
-        if horse_path[-1]=='gxy':
-            horse_path=horse_path[-2];
-        else:
-            horse_path=horse_path[-1];
+        if 'sheep' in out_dir_meta_horse[0]:
+            horse_file_name.replace(' ','_');
+            horse_path=horse_path.split('/');
+            horse_path='_'.join(horse_path[-2:])
+        else:    
+            if horse_path[-1]=='gxy':
+                horse_path=horse_path[-2];
+            else:
+                horse_path=horse_path[-1];
 
         horse_file_out=os.path.join(out_dir_meta_horse[0],horse_path,horse_file_name+'.jpg');
         horse_file_npy_out=os.path.join(out_dir_meta_horse[1],horse_path,horse_file_name+'.npy');
+        # print horse_file_out,horse_file_npy_out;
 
         continue_flag=False;
         for matches_idx in range(num_neighbors):
-            start_idx=(matches_idx*num_neighbors)+1;
-            end_idx=start_idx+num_neighbors;
+            start_idx=(matches_idx*5)+1;
+            end_idx=start_idx+5;
             match_curr=match_split[start_idx:end_idx];
+            # print match_curr;
             match_curr=' '.join(match_curr);
             
             if match_curr in face_data:
@@ -419,6 +458,7 @@ def makeMatchFile(params):
             else:
                 print ('invalid',match_curr);
                 missing_files.append((horse_file_out,horse_file_npy_out,match_curr));
+                # break;
                 continue;
             
             file_match_curr=match_curr.split(' ')[0];
@@ -435,8 +475,8 @@ def makeMatchFile(params):
                 file_match_npy_curr=os.path.join(out_dir_meta_face_old[1],path_curr,file_curr+'.npy');
 
             match_data.append([horse_file_out,horse_file_npy_out,file_match_curr,file_match_npy_curr]);
-
-    print missing_files
+        # break;
+    # print missing_files
     valid_matches=[];
     not_exist=[];
     too_linear=[];
@@ -607,6 +647,7 @@ def getAllPointLineDistancesThreePts(pts):
     return distances;
 
 def getValidPoints(horse_file,human_file):
+    print human_file
     horse_pts=np.load(horse_file);
     human_pts=np.load(human_file);
     check_pts=np.logical_and(horse_pts[:,2]>0,human_pts[:,2]>0);
@@ -619,6 +660,112 @@ def getValidPoints(horse_file,human_file):
     return valid_horse,valid_human;
 
 def main():
+
+    # params_dict={};
+    # params_dict['path_txt'] ='/home/laoreja/data/sheep/sheep.txt'
+    # params_dict['path_pre'] = None;
+    # params_dict['type_data'] = 'sheep';
+    # params_dict['out_dir_meta'] = '/home/SSD3/maheen-data/horse_project/data_check/sheep'
+    # util.mkdir(params_dict['out_dir_meta']);
+    # params_dict['out_dir_im'] = os.path.join(params_dict['out_dir_meta'],'im');
+    # params_dict['out_dir_npy'] = os.path.join(params_dict['out_dir_meta'],'npy');
+    # params_dict['out_file_list_npy'] = os.path.join(params_dict['out_dir_npy'],'data_list.txt');
+    # params_dict['out_file_list_im'] = os.path.join(params_dict['out_dir_im'],'data_list.txt');
+    # params_dict['out_file_pairs'] = os.path.join(params_dict['out_dir_meta'],'pairs.txt');
+    # params_dict['out_file_problem']=os.path.join(params_dict['out_dir_meta'],'problem.txt');
+    # params_dict['overwrite'] = False;
+    # params_dict['resize']=(224,224);
+    # params_dict['buff_ratio']=None;
+    # params=createParams('makeBboxPairFiles');
+
+    # params=params(**params_dict);
+    # script_makeBboxPairFiles(params)
+    # pickle.dump(params._asdict(),open(os.path.join(params.out_dir_meta,'params.p'),'wb'));
+
+    # return
+
+    out_dir_meta_data='/home/SSD3/maheen-data/horse_project/data_check';
+    
+    matches_file='/home/SSD3/maheen-data/horse_project/neighbor_data/sheep_trainImageList_data_5_neigbors.txt';
+
+    face_data_file='/home/laoreja/new-deep-landmark/dataset/train/aflw_trainImageList.txt';
+    face_data_list_file=os.path.join(out_dir_meta_data,'aflw','npy','data_list.txt');
+    # out_dir_meta_horse = os.path.join(out_dir_meta_data,'horse');
+    out_dir_meta_horse = os.path.join(out_dir_meta_data,'sheep');
+    util.mkdir(out_dir_meta_horse);
+    out_dir_meta_horse_list = [os.path.join(out_dir_meta_horse,'im'),os.path.join(out_dir_meta_horse,'npy')];
+    out_dir_meta_face = os.path.join(out_dir_meta_data,'aflw');
+    out_dir_meta_face_list = [os.path.join(out_dir_meta_face,'im'),os.path.join(out_dir_meta_face,'npy')];
+    out_dir_meta_face_old=os.path.join(out_dir_meta_data,'face');
+    out_dir_meta_face_old_list=[os.path.join(out_dir_meta_face_old,'im'),os.path.join(out_dir_meta_face_old,'npy')];
+    num_neighbors=5;
+    out_file_face=os.path.join(out_dir_meta_face,'matches_'+str(num_neighbors)+'_sheep_train_allKP.txt');
+    out_file_face_noIm=os.path.join(out_dir_meta_face,'matches_'+str(num_neighbors)+'_sheep_train_allKP_noIm.txt');
+    out_file_horse=os.path.join(out_dir_meta_horse,'matches_'+str(num_neighbors)+'_sheep_train_allKP.txt');
+    resize=(224,224)
+
+    params_dict={};
+    params_dict['num_neighbors'] = num_neighbors;
+    params_dict['matches_file'] = matches_file;
+    params_dict['face_data_file'] = face_data_file;
+    params_dict['out_dir_meta_horse'] = out_dir_meta_horse_list;
+    params_dict['out_dir_meta_face'] = out_dir_meta_face_list;
+    params_dict['out_file_horse'] = out_file_horse;
+    params_dict['out_file_face'] = out_file_face;
+    params_dict['out_file_face_noIm'] = out_file_face_noIm;
+    params_dict['out_dir_meta_face_old'] = out_dir_meta_face_old_list;
+    params_dict['resize'] = resize;
+    params_dict['threshold']=11.2;
+
+    params=createParams('makeMatchFile');
+    params=params(**params_dict);
+
+    makeMatchFile(params);
+
+    pickle.dump(params._asdict(),open(os.path.join(out_dir_meta_data,'Params_makeMatchFile.p'),'wb'));
+
+    return
+    out_dir_meta_data='/home/SSD3/maheen-data/horse_project/data_check';
+    
+    matches_file='/home/SSD3/maheen-data/horse_project/neighbor_data/horse_trainImageList_2_data_100_neigbors.txt';
+
+    face_data_file='/home/laoreja/new-deep-landmark/dataset/train/aflw_trainImageList.txt';
+    face_data_list_file=os.path.join(out_dir_meta_data,'aflw','npy','data_list.txt');
+    out_dir_meta_horse = os.path.join(out_dir_meta_data,'horse');
+    out_dir_meta_horse_list = [os.path.join(out_dir_meta_horse,'im'),os.path.join(out_dir_meta_horse,'npy')];
+    out_dir_meta_face = os.path.join(out_dir_meta_data,'aflw');
+    out_dir_meta_face_list = [os.path.join(out_dir_meta_face,'im'),os.path.join(out_dir_meta_face,'npy')];
+    out_dir_meta_face_old=os.path.join(out_dir_meta_data,'face');
+    out_dir_meta_face_old_list=[os.path.join(out_dir_meta_face_old,'im'),os.path.join(out_dir_meta_face_old,'npy')];
+    num_neighbors=100;
+    out_file_face=os.path.join(out_dir_meta_face,'matches_'+str(num_neighbors)+'_train_allKP.txt');
+    out_file_face_noIm=os.path.join(out_dir_meta_face,'matches_'+str(num_neighbors)+'_train_allKP_noIm.txt');
+    out_file_horse=os.path.join(out_dir_meta_horse,'matches_'+str(num_neighbors)+'_train_allKP.txt');
+    resize=(224,224)
+
+    params_dict={};
+    params_dict['num_neighbors'] = num_neighbors;
+    params_dict['matches_file'] = matches_file;
+    params_dict['face_data_file'] = face_data_file;
+    params_dict['out_dir_meta_horse'] = out_dir_meta_horse_list;
+    params_dict['out_dir_meta_face'] = out_dir_meta_face_list;
+    params_dict['out_file_horse'] = out_file_horse;
+    params_dict['out_file_face'] = out_file_face;
+    params_dict['out_file_face_noIm'] = out_file_face_noIm;
+    params_dict['out_dir_meta_face_old'] = out_dir_meta_face_old_list;
+    params_dict['resize'] = resize;
+    params_dict['threshold']=11.2;
+
+    params=createParams('makeMatchFile');
+    params=params(**params_dict);
+
+    makeMatchFile(params);
+
+    pickle.dump(params._asdict(),open(os.path.join(out_dir_meta_data,'Params_makeMatchFile.p'),'wb'));
+
+
+
+    return
 
     params_dict={};
     params_dict['path_txt'] ='/home/laoreja/new-deep-landmark/dataset/train/valImageList_2.txt'

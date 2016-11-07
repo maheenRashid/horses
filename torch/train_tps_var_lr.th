@@ -467,7 +467,7 @@ function main(params)
         end
 
         if i%params.dispPlotAfter==0 then
-            visualize:plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_plot);
+            visualize:plotLossFigure(losses,losses_iter,{},{},out_file_loss_plot);
         end
 
     end
@@ -479,7 +479,7 @@ function main(params)
     if params.testAfter>0 and #val_losses>0 then
         npy4th.savenpy(out_file_loss_val, torch.Tensor(val_losses))
     end
-    visualize:plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_plot);
+    visualize:plotLossFigure(losses,losses_iter,{},{},out_file_loss_plot);
 
 end
 
@@ -491,14 +491,14 @@ cmd:text('Train Full network')
 cmd:text()
 cmd:text('Options')
 
-local epoch_size=273;
+local epoch_size=34;
 
 
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_25_1e-2_0','directory to write output');
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_25_varlr_fixEvaluate_rotFix','directory to write output');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/sheep_models/tps','directory to write output');
 
 cmd:option('-num_ctrl_pts',25,'num of training data to read');
-cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50.dat','model to load')
+cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_eye.dat','model to load')
 
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_64','directory to write output');
 -- cmd:option('-num_ctrl_pts',64,'num of training data to read');
@@ -507,18 +507,25 @@ cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_no
 cmd:option('-size_out',224,'num of training data to read');
 cmd:option('-limit',-1,'num of training data to read');
 cmd:option('-iterations',10*epoch_size,'num of iterations to run');
-cmd:option('-saveAfter',2*epoch_size,'num of iterations after which to save model');
+cmd:option('-saveAfter',3*epoch_size,'num of iterations after which to save model');
 cmd:option('-batchSize',64,'batch size');
 cmd:option('-testAfter',30,'num iterations after which to get validation loss');
 cmd:option('-dispAfter',1,'num iterations after which to display training loss');
 cmd:option('-dispPlotAfter',30,'num iterations after which to display training loss');
 
-cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean_padded.txt')
-cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean_padded.txt')
-cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full_padded.txt')
-cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean_full_padded.txt')
+cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/sheep/matches_5_sheep_test_allKP.txt');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
+cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_sheep_test_allKP_noIm.txt');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt')
+-- cmd:option('-horse_data_path','temp');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full.txt')
+cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/sheep/matches_5_sheep_train_allKP.txt');
+    -- 'temp');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean_full.txt')
 
-cmd:option('learningRate', 1e-2)
+cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_sheep_train_allKP_noIm.txt');
+
+cmd:option('learningRate', 1e-3)
 cmd:option('learningRateDecay',5e-6)
 cmd:option('divisor',10);
 cmd:option('beta1', 0.9)
@@ -527,19 +534,19 @@ cmd:option('epsilon', 1e-8)
 cmd:option('augmentation' , true);
 cmd:option('-gpu',1,'gpu to run the training on');
 cmd:option('-debug',false,'debug mode');
-cmd:option('-decreaseAfter',2*epoch_size)
+cmd:option('-decreaseAfter',5*epoch_size)
 -- 5*epoch_size);
 
-params = cmd:parse(arg)
-main(params);
+-- params = cmd:parse(arg)
+-- main(params);
 
 -- cmd:option('-outDir','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final_model','directory to write output');
 
-cmd:option('-model',paths.concat(params.outDir,'final/model_all_final.dat'));
--- cmd:option('-num_ctrl_pts',25,'num of training data to read');
--- cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_64/intermediate/model_all_1365.dat')
-cmd:option('-out_dir_images','test_images');
+-- cmd:option('-model',paths.concat(params.outDir,'final/model_all_final.dat'));
+cmd:option('-num_ctrl_pts',25,'num of training data to read');
+cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_64/intermediate/model_all_1365.dat')
+cmd:option('-out_dir_images','test_face');
 cmd:option('-iterations',2,'num of iterations to run');
-cmd:option('-batchSize',100,'batch size');
+cmd:option('-batchSize',50,'batch size');
 params = cmd:parse(arg);
 test(params);

@@ -10,6 +10,7 @@ do
         self.std_file=args.std_file;
         self.limit=args.limit;
         self.augmentation=args.augmentation;
+        self.rotFix=args.rotFix;
         print ('self.augmentation',self.augmentation);
 
         
@@ -131,12 +132,14 @@ do
 
             local rand=math.random(#angles);
             local angle=math.rad(angles[rand]);
-
-            local rot = torch.ones(img_horse_org:size());
-            rot=image.rotate(rot,angle,"simple");
-
+            -- print ('no rotfix');
             img_horse=image.rotate(img_horse_org,angle,"bilinear");
-            img_horse[rot:eq(0)]=img_horse_org[rot:eq(0)];
+
+            if self.rotFix then
+                local rot = torch.ones(img_horse_org:size());
+                rot=image.rotate(rot,angle,"simple");
+                img_horse[rot:eq(0)]=img_horse_org[rot:eq(0)];
+            end
 
             local rotation_matrix=torch.zeros(2,2);
             rotation_matrix[1][1]=math.cos(angle);

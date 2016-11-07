@@ -42,7 +42,7 @@ function makeXavierGaussian(model)
 	            -- m.weight=torch.zeros(m.weight:size());
 	            -- m.bias=torch.zeros(m.bias:size());
 	            
-	            print (m.weight:size(),var,torch.var(m.weight));
+	            -- print (m.weight:size(),var,torch.var(m.weight));
 	        end
         end
     end
@@ -76,69 +76,118 @@ local dir_models='/home/SSD3/maheen-data/horse_project/models';
 paths.mkdir(dir_models);
 in_file=paths.concat(dir_models,'alexnet.dat');
 -- out_file=paths.concat(dir_models,'conv5_2fc_closeToZero.dat');
-out_file=paths.concat(dir_models,'conv5_2fc_bn_normalXavier_128_50.dat');
+-- out_file=paths.concat(dir_models,'conv5_2fc_bn_normalXavier_128_50_fixBN.dat');
 
--- in_file='/home/SSD3/maheen-data/horse_human_fiveKP/intermediate/model_all_200.dat'
+out_file=paths.concat(dir_models,'conv5_2fc_bn_normalXavier_128_50_eye.dat');
+
+model=torch.load(out_file);
+-- a=model:get(25).weight:clone();
+print (model:get(25).weight);
+out_file=paths.concat('/home/SSD3/maheen-data/horse_project/tps_small_data_1e-3_dec_5_eye/matches_5_500','final/model_all_final.dat');
+
+model=torch.load(out_file);
+-- -- model=model:get(1):get(1):get(2);
+-- -- -- model=model:double();
+print (model);
+-- print (model:get(25).weight);
+-- -- print (torch.min(a-model:get(25).weight),torch.max(a-model:get(25).weight));
+
+-- -- -- print (model);
+-- -- -- in_file='/home/SSD3/maheen-data/horse_human_fiveKP/intermediate/model_all_200.dat'
+-- -- -- local model=torch.load(in_file);
+-- -- -- print (model)
+-- -- -- for i =1,#model do
+-- -- -- 	if model:get(i).weight then
+-- -- -- 		print (i,model:get(i));
+-- -- -- 		print (torch.min(model:get(i).weight),torch.max(model:get(i).weight));
+-- -- -- 		if model:get(i).bias then
+-- -- -- 			print(torch.min(model:get(i).bias),torch.max(model:get(i).bias));
+-- -- -- 		end
+-- -- -- 	end
+-- -- -- end
+
 -- local model=torch.load(in_file);
--- print (model)
--- for i =1,#model do
--- 	if model:get(i).weight then
--- 		print (i,model:get(i));
--- 		print (torch.min(model:get(i).weight),torch.max(model:get(i).weight));
--- 		if model:get(i).bias then
--- 			print(torch.min(model:get(i).bias),torch.max(model:get(i).bias));
--- 		end
--- 	end
--- end
+-- -- (15): nn.SpatialBatchNormalization
+-- --   (16): cudnn.SpatialConvolution(256 -> 128, 1x1)
+-- --   (17): cudnn.ReLU
+-- --   (18): cudnn.SpatialMaxPooling(3x3, 2,2)
+-- --   (19): nn.View(4608)
+-- --   (20): nn.BatchNormalization
+-- --   (21): nn.Linear(4608 -> 128)
+-- --   (22): cudnn.ReLU
+-- --   (23): nn.Dropout(0.500000)
+-- --   (24): nn.BatchNormalization
+-- --   (25): nn.Linear(128 -> 50)
+-- --   (26): nn.TPSGridGeneratorBHWD
 
-local model=torch.load(in_file);
-print (model)
-local model_new=nn.Sequential();
-model_new:add(nn.SpatialBatchNormalization(256));
-model_new:add(nn.SpatialConvolution(256,128,1,1));
-model_new:add(nn.ReLU());
-model_new:add(nn.SpatialMaxPooling(3,3,2,2));
-model_new:add(nn.View(4608));
-model_new:add(nn.BatchNormalization(4608));
-model_new:add(nn.Linear(4608,128));
-model_new:add(nn.ReLU());
-model_new:add(nn.Dropout(0.5));
-model_new:add(nn.BatchNormalization(128));
-model_new:add(nn.Linear(128,50));
--- model_new=model_new:cuda();
+-- -- print (model)
+-- local model_new=nn.Sequential();
+-- model_new:add(nn.SpatialBatchNormalization(256));
+-- model_new:add(nn.SpatialConvolution(256,128,1,1));
+-- model_new:add(nn.ReLU());
+-- model_new:add(nn.SpatialMaxPooling(3,3,2,2));
+-- model_new:add(nn.View(4608));
+-- model_new:add(nn.BatchNormalization(4608));
+-- model_new:add(nn.Linear(4608,128));
+-- model_new:add(nn.ReLU());
+-- model_new:add(nn.Dropout(0.5));
+-- model_new:add(nn.BatchNormalization(128));
+-- model_new:add(nn.Linear(128,50))
+-- -- 6));
+-- -- model_new:add(nn.View(2,3));
+-- -- -- model_new=model_new:cuda();
+-- -- -- print (model_new);
+
+-- model_new=makeXavierGaussian(model_new);
+-- for i=1,14 do
+-- 	model_new:insert(model:get(i):clone(),i);
+-- end
+-- -- model_new:add(nn.TPSGridGeneratorBHWD(25,224,224));
+
+
+-- model_new:get(25).weight:fill(0)
+--  -- = torch.randn(model_new:get(25).weight:size()):mul(0.001)
+-- -- :fill(0)
+-- -- = torch.randn(model_new:get(25).weight:size()):mul(0.008)
+-- -- :fill(0.008)
+-- model_new:get(25).bias:fill(0)
+-- -- =torch.randn(model_new:get(25).bias:size()):mul(0.008)
+-- -- :fill(0)
+-- -- print (model_new:get(25).weight:size());
+-- -- local bias = torch.FloatTensor():fill(0)
+-- -- bias[1]=1
+-- -- bias[5]=1
+-- -- model_new:get(25).bias:copy(bias)
+
+-- cudnn.convert(model_new, cudnn)
 -- print (model_new);
 
-model_new=makeXavierGaussian(model_new);
-for i=1,14 do
-	model_new:insert(model:get(i):clone(),i);
-end
-cudnn.convert(model_new, cudnn)
-print (model_new);
+-- check=torch.zeros(10,3,224,224):cuda();
+-- out=model_new:cuda():forward(check);
 
-check=torch.zeros(10,3,224,224):cuda();
-out=model_new:cuda():forward(check);
--- print (model:get(16).output:size());
-print (out:size());
+-- print (model_new:get(25).output)
+-- -- print (model:get(16).output:size());
+-- print (out:size());
 
 
--- skjdalkdjla
-torch.save(out_file,model_new);
+-- -- -- skjdalkdjla
+-- torch.save(out_file,model_new);
 
 
 
--- local input=torch.zeros(10,3,227,227):cuda();
+-- -- local input=torch.zeros(10,3,227,227):cuda();
 
--- local output=model_new:forward(input);
--- print (output:size())
+-- -- local output=model_new:forward(input);
+-- -- print (output:size())
 
 
--- 17): nn.Linear(9216 -> 4096)
---   (18): cudnn.ReLU
---   (19): nn.Dropout(0.500000)
---   (20): nn.Linear(4096 -> 4096)
---   (21): cudnn.ReLU
---   (22): nn.Dropout(0.500000)
---   (23): nn.Linear(4096 -> 1000)
---   (24): cudnn.SoftMax
+-- -- 17): nn.Linear(9216 -> 4096)
+-- --   (18): cudnn.ReLU
+-- --   (19): nn.Dropout(0.500000)
+-- --   (20): nn.Linear(4096 -> 4096)
+-- --   (21): cudnn.ReLU
+-- --   (22): nn.Dropout(0.500000)
+-- --   (23): nn.Linear(4096 -> 1000)
+-- --   (24): cudnn.SoftMax
 
--- th train_tps_cl.th 2>&1 | tee /home/SSD3/maheen-data/horse_human_fiveKP/log.txt
+-- -- th train_tps_cl.th 2>&1 | tee /home/SSD3/maheen-data/horse_human_fiveKP/log.txt
