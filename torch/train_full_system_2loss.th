@@ -284,7 +284,7 @@ function doTheUpdate(optimMethod,optimStateTotal,padTPS,full_back_prop)
 end
 
 
-function doTheUpdateDualLoss(optimMethod,optimStateTotal,padTPS,full_back_prop)
+function doTheUpdateDualLoss(optimMethod,optimStateTotal,padTPS,full_back_prop,affine_flag)
     
     td:getTrainingData();
     td.training_set_horse.data=td.training_set_horse.data:cuda();
@@ -325,11 +325,21 @@ function doTheUpdateDualLoss(optimMethod,optimStateTotal,padTPS,full_back_prop)
         end
 
         if params.dual then
-            local gt_output = tps_layer:getGTOutput(human_labels,horse_labels);
+            local gt_output;
+            if affine_flag then
+                local gt_params=tps_helper:getGTParams(human_labels,horse_labels);
+                -- print (tps_layer);
+                gt_output=tps_layer:clone():forward(gt_params)
+                -- :get(1):get(2).output;
+
+            else
+                gt_output = tps_layer:getGTOutput(human_labels,horse_labels);
+            end
             local batch_targets = gt_output:clone();            
             local lossD_mid=loss_helper:getLossD_L2(net:get(1):get(1):get(2).output,batch_targets);
             loss_mid=loss_helper:getLoss_L2(net:get(1):get(1):get(2).output,batch_targets);
             net:get(1):get(1):get(2):backward(inputs,lossD_mid);
+            
         end
     end
 
@@ -605,7 +615,7 @@ function main(params)
         end
 
         -- local train_loss = doTheUpdate(optimMethod,optimStateTotal,params.padTPS,params.full_back_prop);
-        local train_loss,loss_mid = doTheUpdateDualLoss(optimMethod,optimStateTotal,params.padTPS,params.full_back_prop);
+        local train_loss,loss_mid = doTheUpdateDualLoss(optimMethod,optimStateTotal,params.padTPS,params.full_back_prop,params.affine);
         if not loss_mid then
             loss_mid=train_loss;
         end
@@ -714,15 +724,19 @@ cmd:text('Train Full network')
 cmd:text()
 cmd:text('Options')
 
-local epoch_size=7;
--- 56;
+local epoch_size=56;
+-- 7;
 
 cmd:option('-tps_model_path','temp');
+cmd:option('affine',true);
+
     -- '/home/SSD3/maheen-data/horse_project/tps_25_varlr_fixEvaluate/final/model_all_final.dat');
 -- cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/tps_25_varlr_fixEvaluate_rotFix/final/model_all_final.dat');
 
 -- cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withTPS.dat');
 cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
+
+
 -- cmd:option('-full_model_flag',false);
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_scratch_1e-2_1_10','directory to write output');
 
@@ -805,7 +819,7 @@ main(params);
 cmd:option('-full_model_path',paths.concat(params.outDir,'final/model_all_final.dat'),'full model path for testing');
     -- ,'temp');
 cmd:option('-iterations',2,'num of iterations to run');
-cmd:option('-batchSize',50,'batch size');
+cmd:option('-batchSize',100,'batch size');
 cmd:option('-outDirTest',paths.concat(params.outDir,'test_images'));
     -- 'temp');
 params = cmd:parse(arg)

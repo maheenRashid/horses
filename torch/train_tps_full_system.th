@@ -736,8 +736,8 @@ cmd:text('Options')
 local epoch_size=56;
 
 -- cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50.dat');
--- cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withTPS_eye.dat');
-cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withAffine.dat');
+cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withTPS_eye.dat');
+-- cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withAffine.dat');
 -- cmd:option('-justLoc',true,'true if the tps_model_path is just the localization network');
 
 cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
@@ -745,7 +745,7 @@ cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/va
 -- cmd:option('-full_model_flag',true);
 -- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/train_tps_full_system_1e-3_100_1/final/model_all_final.dat');
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_full_train_padded_1e-5_100_1','directory to write output');
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/face_baselines_small_data/matches_5_3531_horse_minloss_affine_eye_1e-3_10_1');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/face_baselines_small_data/matches_5_3531_horse_minloss_tps_eye_1e-3_10_1_dec_100');
 
 cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
 cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
@@ -759,7 +759,7 @@ cmd:option('-batchSize',64,'batch size');
 cmd:option('-testAfter',30,'num iterations after which to get validation loss');
 cmd:option('-dispAfter',1,'num iterations after which to display training loss');
 cmd:option('-dispPlotAfter',30,'num iterations after which to display training loss');
-cmd:option('-decreaseAfter',50*epoch_size,'num of iterations to run');
+cmd:option('-decreaseAfter',100*epoch_size,'num of iterations to run');
 
 -- cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
 -- cmd:option('-data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean.txt')

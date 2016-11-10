@@ -1,0 +1,337 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_horseHuman_xiuye';
+require 'cunn'
+require 'cudnn'
+require 'nn';
+require 'optim'
+require 'stn'
+npy4th=require 'npy4th';
+require 'torchx';
+require 'gnuplot';
+dump=require 'dump';
+tps_helper=require 'tps_helper';
+visualize=require 'visualize';
+loss_helper=require 'loss_helper';
+
+
+
+-- function getGTParams(horse_pts,human_pts):
+-- end
+
+
+function getNets(net_file,num_ctrl_pts,size_out,affine_flag)
+    local locnet = torch.load(net_file);
+    
+    if not affine_flag then
+    -- 	locnet:add(nn.AffineGridGeneratorBHWD(size_out,size_out));
+    -- else
+    	locnet:add(nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out));
+    end
+
+    local tranet=nn.Transpose({2,3},{3,4})
+    local concat=nn.ConcatTable()
+    concat:add(tranet)
+    concat:add(locnet)
+
+    local net=nn.Sequential();
+    net:add(concat)
+    net:add(nn.BilinearSamplerBHWD())
+    net:add(nn.Transpose({3,4},{2,3}))
+
+    
+    local gt_net=nn.Sequential();
+    local parnet=nn.ParallelTable();
+    parnet:add(tranet:clone());
+    if affine_flag then
+    	parnet:add(nn.AffineGridGeneratorBHWD(size_out,size_out));
+    else
+		parnet:add(nn.Identity());
+	end
+    gt_net:add(parnet);
+    gt_net:add(nn.BilinearSamplerBHWD());
+    gt_net:add(nn.Transpose({3,4},{2,3}));
+    
+    local tps;
+    if affine_flag then
+    	tps=nn.AffineGridGeneratorBHWD(size_out,size_out);
+    else
+    	tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
+    end
+
+    return net,gt_net,tps;
+end
+
+function scaleBack(pts,im_size,scale_range)
+    for idx=1,#pts do
+        pts_curr=pts[idx];
+        pts_curr=pts_curr:div(im_size);
+        pts_curr=pts_curr:mul(scale_range[2]-scale_range[1]);
+        pts_curr=pts_curr+scale_range[1];
+        pts[idx]=pts_curr;
+    end
+    return pts;
+end
+
+function getAffineTransform(human_label,horse_label)
+	-- local mat=torch.zeros(2,3):type(human_label:type());
+	local M=torch.zeros(human_label:size(2)*2,6):type(human_label:type());
+	local proj=torch.zeros(human_label:size(2)*2,1):type(human_label:type());
+	for idx=1,human_label:size(2) do
+		local row_x=(idx*2)-1;
+		local row_y=(idx*2);
+		proj[row_x][1]=horse_label[1][idx];
+		proj[row_y][1]=horse_label[2][idx];
+
+		M[row_x][1]=human_label[1][idx];
+		M[row_x][2]=human_label[2][idx];
+		M[row_x][3]=1;
+
+		M[row_y][4]=human_label[1][idx];
+		M[row_y][5]=human_label[2][idx];
+		M[row_y][6]=1;
+	end
+	local mat=torch.inverse(M:t()*M)*M:t()*proj;
+	mat=mat:view(2,3);
+	return mat;
+end
+
+function getGTParams(human_labels,horse_labels)
+	local transform_params=torch.zeros(#human_labels,2,3):type(human_labels[1]:type());
+	for idx=1,#human_labels do
+		local human_label=human_labels[idx];
+		local horse_label=horse_labels[idx];
+		
+		assert (human_label:size(2)==horse_label:size(2));
+		transform_params[idx]=getAffineTransform(human_label,horse_label);
+		
+	end
+	return transform_params;
+end
+
+function main(params)
+	local out_dir=params.outDir
+    paths.mkdir(out_dir);
+    if params.limit<0 then
+        params.limit=nil;
+    end
+    local out_dir_images;
+
+    if not params.out_dir_images then  
+        out_dir_images=paths.concat(out_dir,'test_images');
+    else
+        out_dir_images=paths.concat(out_dir,params.out_dir_images);
+    end
+
+    paths.mkdir(out_dir_images);
+    local out_file_loss_val=paths.concat(out_dir_images,'loss_final_val.npy');
+    local out_file_loss_val_ind=paths.concat(out_dir_images,'loss_final_val_ind.npy');
+
+    local out_file_log=paths.concat(out_dir_images,'log_test.txt');
+    local logger=torch.DiskFile(out_file_log,'w');
+
+    logger:writeString(dump.tostring(params)..'\n');
+    -- print (params);
+
+    cutorch.setDevice(params.gpu);
+
+
+    local num_ctrl_pts=params.num_ctrl_pts;
+    local size_out=params.size_out;
+
+    logger:writeString(dump.tostring('loading network')..'\n');
+    print ('loading network');
+
+    -- net = torch.load(params.model);
+    local net,gt_net,tps=getNets(params.model,num_ctrl_pts,size_out,params.affine)
+
+    logger:writeString(dump.tostring('done loading network')..'\n');
+    -- print ('done loading network');
+    -- 
+    print (net);
+    print (gt_net)
+    -- print (tps)
+
+    logger:writeString(dump.tostring('making cuda')..'\n');
+    -- print ('making cuda');
+    net = net:cuda();
+    gt_net=gt_net:cuda();
+    tps=tps:cuda();
+
+    
+    logger:writeString(dump.tostring('done')..'\n');
+    print ('done');
+
+    net:evaluate();
+    print (params.val_horse_data_path);
+    local data_params={file_path_horse=params.val_horse_data_path,
+                        file_path_human=params.val_human_data_path,
+                        humanImage=true,
+                        limit=params.limit,
+                        augmentation=false};
+
+    td = data_horseHuman(data_params);
+    td.params.input_size = {size_out,size_out};
+    td.batch_size = params.batchSize;        
+    
+    local val_losses = {};
+    local val_losses_iter = {};
+    local val_losses_ind={};
+    local colors={{255,0,0},{255,255,0},{0,0,255},{0,255,0},{255,0,255}};
+    
+    for i=1,params.iterations do
+
+            local file_pre=paths.concat(out_dir_images,i..'_');
+            
+            td:getTrainingData();
+            td.training_set_horse.data=td.training_set_horse.data:cuda();
+            td.training_set_horse.label=td.training_set_horse.label:cuda();
+            td.training_set_human.label=td.training_set_human.label:cuda();
+            local horse_labels,human_labels,batch_inputs,batch_inputs_human,_=td:getBatchPoints()
+            
+            print (batch_inputs:size())
+            local warped_im_pred=net:forward(batch_inputs);
+            local pred_output=net:get(1):get(2).output;
+            local warped_pts_pred=tps_helper:getTransformedLandMarkPoints(horse_labels,pred_output,true);
+
+            
+            local gt_output;
+            local warped_im_gt;
+
+            if params.affine then
+	            local gt_params=getGTParams(human_labels,horse_labels);
+	            print (net:get(1):get(2):get(26).output[1]);
+	            -- print (pred_output:size())
+	            -- local gt_output=pred_output;
+	            -- local gt_params=torch.zeros(batch_inputs:size(1),2,3);
+	            -- gt_params[{{},1,1}]=1;
+	            -- gt_params[{{},2,2}]=1;
+
+	            gt_params=gt_params:cuda();
+
+	            warped_im_gt=gt_net:forward{batch_inputs:clone(),gt_params};
+	            gt_output=gt_net:get(1):get(2).output;
+        	else
+        		gt_output=tps:getGTOutput(human_labels,horse_labels);
+        		warped_im_gt=gt_net:forward{batch_inputs:clone(),gt_output};
+        	end
+
+            local warped_pts_gt=tps_helper:getTransformedLandMarkPoints(horse_labels,gt_output,true)
+            
+            -- print (pred_output:size(),gt_output:size());
+
+            local file_info={file_pre,'_gtwarp.jpg'};
+            visualize:saveBatchImagesWithKeypoints(warped_im_gt:double(),warped_pts_gt,file_info,td.params.mean,nil,colors);
+
+            file_info={file_pre,'_predwarp.jpg'};
+            visualize:saveBatchImagesWithKeypoints(warped_im_pred:double(),warped_pts_pred,file_info,td.params.mean,nil,colors);
+
+            file_info={file_pre,'_horse.jpg'};
+            visualize:saveBatchImagesWithKeypoints(batch_inputs:double(),horse_labels,file_info,td.params.mean,{-1,1},colors);
+
+            file_info={file_pre,'_human.jpg'};
+            visualize:saveBatchImagesWithKeypoints(batch_inputs_human:double(),human_labels,file_info,td.params.mean,{-1,1},colors);
+
+
+            warped_pts_pred=scaleBack(warped_pts_pred,gt_output:size(2),{-1,1});
+            warped_pts_gt=scaleBack(warped_pts_gt,pred_output:size(2),{-1,1});
+
+            local loss_gt,loss_all_gt = loss_helper:getLoss_EuclideanTPS(warped_pts_gt,human_labels);
+            local loss,loss_all = loss_helper:getLoss_EuclideanTPS(warped_pts_pred,human_labels);
+
+            for idx_ind=1,loss_all:size(1) do
+                val_losses_ind[#val_losses_ind+1]=loss_all[idx_ind];
+            end
+            val_losses[#val_losses+1]=loss;
+            val_losses_iter[#val_losses_iter+1]=i;
+
+            disp_str=string.format("minibatches processed: %6s, val loss = %6.6f", i, val_losses[#val_losses])
+            logger:writeString(dump.tostring(disp_str)..'\n');
+            print(disp_str)
+
+            disp_str=string.format("minibatches processed: %6s, gt val loss = %6.6f", i, loss_gt)
+            logger:writeString(dump.tostring(disp_str)..'\n');
+            print(disp_str)
+    end
+    
+    val_losses_ind=torch.Tensor(val_losses_ind);
+    print (val_losses_ind:size(),#td.lines_horse)
+
+    if val_losses_ind:size(1)>#td.lines_horse then
+        val_losses_ind=val_losses_ind[{{1,#td.lines_horse}}];
+    end
+    print (val_losses_ind:size())
+    print (params.model);
+    disp_str=string.format("minibatches processed: all, val loss = %6.6f", torch.mean(val_losses_ind))
+    logger:writeString(dump.tostring(disp_str)..'\n');
+    print(disp_str)
+
+    npy4th.savenpy(out_file_loss_val, torch.Tensor(val_losses))
+    npy4th.savenpy(out_file_loss_val_ind, val_losses_ind)
+
+end
+
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text('Train Full network')
+cmd:text()
+cmd:text('Options')
+
+local epoch_size=34;
+
+
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/affine_train_check','directory to write output');
+-- cmd:option('-out_dir_images','test_tps');
+-- cmd:option('affine',false);
+-- cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_eye.dat','model to load')
+-- cmd:option('-num_ctrl_pts',25,'num of training data to read');
+
+cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withAffine.dat');
+cmd:option('affine',true);
+
+cmd:option('-size_out',224,'num of training data to read');
+cmd:option('-limit',-1,'num of training data to read');
+cmd:option('-iterations',1,'num of iterations to run');
+cmd:option('-saveAfter',3*epoch_size,'num of iterations after which to save model');
+cmd:option('-batchSize',64,'batch size');
+cmd:option('-testAfter',30,'num iterations after which to get validation loss');
+cmd:option('-dispAfter',1,'num iterations after which to display training loss');
+cmd:option('-dispPlotAfter',30,'num iterations after which to display training loss');
+
+cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/sheep/matches_5_sheep_test_allKP_minloss.txt');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
+cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_sheep_test_allKP_minloss.txt');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt')
+-- cmd:option('-horse_data_path','temp');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full.txt')
+cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/sheep/matches_5_sheep_train_allKP_minloss.txt');
+    -- 'temp');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean_full.txt')
+
+cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_sheep_train_allKP_noIm_minloss.txt');
+
+cmd:option('learningRate', 1e-3)
+cmd:option('learningRateDecay',5e-6)
+cmd:option('divisor',10);
+cmd:option('beta1', 0.9)
+cmd:option('beta2', 0.999)
+cmd:option('epsilon', 1e-8)
+cmd:option('augmentation' , true);
+cmd:option('-gpu',1,'gpu to run the training on');
+cmd:option('-debug',false,'debug mode');
+cmd:option('-decreaseAfter',5*epoch_size)
+-- 5*epoch_size);
+
+params = cmd:parse(arg)
+main(params);
+
+-- cmd:option('-outDir','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final_model','directory to write output');
+
+-- cmd:option('-model',paths.concat(params.outDir,'final/model_all_final.dat'));
+-- cmd:option('-num_ctrl_pts',25,'num of training data to read');
+-- cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_64/intermediate/model_all_1365.dat')
+
+-- cmd:option('-iterations',2,'num of iterations to run');
+-- cmd:option('-batchSize',50,'batch size');
+-- params = cmd:parse(arg);
+-- test(params);

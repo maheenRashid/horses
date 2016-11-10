@@ -15,6 +15,43 @@ visualize=require 'visualize';
 loss_helper=require 'loss_helper';
 
 
+function getAffineTransform(human_label,horse_label)
+    -- local mat=torch.zeros(2,3):type(human_label:type());
+    local M=torch.zeros(human_label:size(2)*2,6):type(human_label:type());
+    local proj=torch.zeros(human_label:size(2)*2,1):type(human_label:type());
+    for idx=1,human_label:size(2) do
+        local row_x=(idx*2)-1;
+        local row_y=(idx*2);
+        proj[row_x][1]=horse_label[1][idx];
+        proj[row_y][1]=horse_label[2][idx];
+
+        M[row_x][1]=human_label[1][idx];
+        M[row_x][2]=human_label[2][idx];
+        M[row_x][3]=1;
+
+        M[row_y][4]=human_label[1][idx];
+        M[row_y][5]=human_label[2][idx];
+        M[row_y][6]=1;
+    end
+    local mat=torch.inverse(M:t()*M)*M:t()*proj;
+    mat=mat:view(2,3);
+    return mat;
+end
+
+function getGTParams(human_labels,horse_labels)
+    local transform_params=torch.zeros(#human_labels,2,3):type(human_labels[1]:type());
+    for idx=1,#human_labels do
+        local human_label=human_labels[idx];
+        local horse_label=horse_labels[idx];
+        
+        assert (human_label:size(2)==horse_label:size(2));
+        transform_params[idx]=getAffineTransform(human_label,horse_label);
+        
+    end
+    return transform_params;
+end
+
+
 function getLossD(pred_output,gt_output)
 	local lossD=pred_output-gt_output
 	lossD=torch.mul(lossD,2);
@@ -27,14 +64,29 @@ function getLoss(pred_output,gt_output)
 	return loss;
 end
 
-function doTheUpdate(optimMethod,optimStateTotal)
+function doTheUpdate(optimMethod,optimStateTotal,affine_flag)
     td:getTrainingData();
     td.training_set_horse.data=td.training_set_horse.data:cuda();
     td.training_set_human.label=td.training_set_human.label:cuda();
     td.training_set_horse.label=td.training_set_horse.label:cuda();
 
     local horse_labels,human_labels,batch_inputs,_,_=td:getBatchPoints()
-    local gt_output=tps:getGTOutput(human_labels,horse_labels);
+    
+    local gt_output;
+    if params.affine then
+        local gt_params=getGTParams(human_labels,horse_labels);
+        -- gt_params=gt_params:cuda();
+        -- warped_im_gt=gt_net:forward{batch_inputs:clone(),gt_params};
+        -- print (tps,gt_params:size())
+        -- local transformMatrix=gt_params;
+        -- print (transformMatrix:nDimension()==3,transformMatrix:size(2)==2,transformMatrix:size(3)==3)
+        -- local tps=nn.AffineGridGeneratorBHWD(224,224):cuda();
+        gt_output=tps:forward(gt_params);
+    else
+        gt_output=tps:getGTOutput(human_labels,horse_labels);
+        -- warped_im_gt=gt_net:forward{batch_inputs:clone(),gt_output};
+    end
+
     local batch_targets = gt_output:clone();
 
 
@@ -53,8 +105,41 @@ function doTheUpdate(optimMethod,optimStateTotal)
     return loss;
 end
 
-function getNets(net_file,num_ctrl_pts,size_out)
+-- function getNets(net_file,num_ctrl_pts,size_out)
+--     local locnet = torch.load(net_file);
+--     local tranet=nn.Transpose({2,3},{3,4})
+--     local concat=nn.ConcatTable()
+--     concat:add(tranet)
+--     concat:add(locnet)
+
+--     local net=nn.Sequential();
+--     net:add(concat)
+--     net:add(nn.BilinearSamplerBHWD())
+--     net:add(nn.Transpose({3,4},{2,3}))
+
+    
+--     local gt_net=nn.Sequential();
+--     local parnet=nn.ParallelTable();
+--     parnet:add(tranet:clone());
+--     parnet:add(nn.Identity());
+--     gt_net:add(parnet);
+--     gt_net:add(nn.BilinearSamplerBHWD());
+--     gt_net:add(nn.Transpose({3,4},{2,3}));
+--     local tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
+    
+--     return net,gt_net,tps;
+
+-- end
+
+function getNets(net_file,num_ctrl_pts,size_out,affine_flag)
     local locnet = torch.load(net_file);
+    
+    -- if not affine_flag then
+    -- --  locnet:add(nn.AffineGridGeneratorBHWD(size_out,size_out));
+    -- -- else
+    --     locnet:add(nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out));
+    -- end
+
     local tranet=nn.Transpose({2,3},{3,4})
     local concat=nn.ConcatTable()
     concat:add(tranet)
@@ -69,15 +154,25 @@ function getNets(net_file,num_ctrl_pts,size_out)
     local gt_net=nn.Sequential();
     local parnet=nn.ParallelTable();
     parnet:add(tranet:clone());
-    parnet:add(nn.Identity());
+    if affine_flag then
+        parnet:add(nn.AffineGridGeneratorBHWD(size_out,size_out));
+    else
+        parnet:add(nn.Identity());
+    end
     gt_net:add(parnet);
     gt_net:add(nn.BilinearSamplerBHWD());
     gt_net:add(nn.Transpose({3,4},{2,3}));
-    local tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
     
-    return net,gt_net,tps;
+    local tps;
+    if affine_flag then
+        tps=nn.AffineGridGeneratorBHWD(size_out,size_out);
+    else
+        tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
+    end
 
+    return net,gt_net,tps;
 end
+
 
 function scaleBack(pts,im_size,scale_range)
     for idx=1,#pts do
@@ -126,7 +221,7 @@ function test(params)
     -- print ('loading network');
 
     -- net = torch.load(params.model);
-    local net,gt_net,tps=getNets(params.model,num_ctrl_pts,size_out)
+    local net,gt_net,tps=getNets(params.model,num_ctrl_pts,size_out,params.affine)
 
     logger:writeString(dump.tostring('done loading network')..'\n');
     -- print ('done loading network');
@@ -175,12 +270,24 @@ function test(params)
             local pred_output=net:get(1):get(2).output;
             local warped_pts_pred=tps_helper:getTransformedLandMarkPoints(horse_labels,pred_output,true);
 
-            local gt_output=tps:getGTOutput(human_labels,horse_labels);
-            local warped_im_gt=gt_net:forward{batch_inputs:clone(),gt_output};
-            local warped_pts_gt=tps_helper:getTransformedLandMarkPoints(horse_labels,gt_output,true)
-            
-            -- print (pred_output:size(),gt_output:size());
+            -- local gt_output=tps:getGTOutput(human_labels,horse_labels);
+            -- local warped_im_gt=gt_net:forward{batch_inputs:clone(),gt_output};
+            -- local warped_pts_gt=tps_helper:getTransformedLandMarkPoints(horse_labels,gt_output,true)
 
+            local gt_output;
+            local warped_im_gt;
+            
+            if params.affine then
+                local gt_params=getGTParams(human_labels,horse_labels);
+                warped_im_gt=gt_net:forward{batch_inputs:clone(),gt_params};
+                gt_output=gt_net:get(1):get(2).output;
+            else
+                gt_output=tps:getGTOutput(human_labels,horse_labels);
+                warped_im_gt=gt_net:forward{batch_inputs:clone(),gt_output};
+            end
+            local warped_pts_gt=tps_helper:getTransformedLandMarkPoints(horse_labels,gt_output,true)
+
+            
             local file_info={file_pre,'_gtwarp.jpg'};
             visualize:saveBatchImagesWithKeypoints(warped_im_gt:double(),warped_pts_gt,file_info,td.params.mean,nil,colors);
 
@@ -337,8 +444,13 @@ function main(params)
 
     net = torch.load(params.model);
     -- ds_net=setUpGTNets();
-    tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
-    net:add(tps);
+    if params.affine then
+        tps=net:get(#net);
+    else
+        tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
+        net:add(tps);
+    end
+    
     
     logger:writeString(dump.tostring('done loading network')..'\n');
     print ('done loading network');
@@ -436,8 +548,16 @@ function main(params)
             vd.training_set_horse.label=vd.training_set_horse.label:cuda();
 
             local horse_labels,human_labels,batch_inputs,_,_=vd:getBatchPoints()
-            local gt_output=tps:getGTOutput(human_labels,horse_labels);
-            local batch_targets = gt_output:clone();
+            
+            local gt_output;
+            if params.affine then
+                local gt_params=getGTParams(human_labels,horse_labels);
+                gt_output=tps:forward(gt_params)
+            else
+                gt_output=tps:getGTOutput(human_labels,horse_labels);
+            end
+            
+            local batch_targets= gt_output:clone();
             local outputs=net:forward(batch_inputs);
             local loss = getLoss(outputs,batch_targets);
             -- if loss >1 then
@@ -491,14 +611,17 @@ cmd:text('Train Full network')
 cmd:text()
 cmd:text('Options')
 
-local epoch_size=34;
+local epoch_size=275;
 
 
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_25_1e-2_0','directory to write output');
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/sheep_models/tps','directory to write output');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/affine_train_check','directory to write output');
 
-cmd:option('-num_ctrl_pts',25,'num of training data to read');
-cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_eye.dat','model to load')
+-- cmd:option('-num_ctrl_pts',25,'num of training data to read');
+-- cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_eye.dat','model to load')
+cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withAffine.dat');
+cmd:option('affine',true);
+
 
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_64','directory to write output');
 -- cmd:option('-num_ctrl_pts',64,'num of training data to read');
@@ -513,9 +636,11 @@ cmd:option('-testAfter',30,'num iterations after which to get validation loss');
 cmd:option('-dispAfter',1,'num iterations after which to display training loss');
 cmd:option('-dispPlotAfter',30,'num iterations after which to display training loss');
 
-cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/sheep/matches_5_sheep_test_allKP.txt');
+cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
+    -- '/home/SSD3/maheen-data/horse_project/data_check/sheep/matches_5_sheep_test_allKP.txt');
     -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
-cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_sheep_test_allKP_noIm.txt');
+cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt')
+    -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_sheep_test_allKP_noIm.txt');
     -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt')
 -- cmd:option('-horse_data_path','temp');
     -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full.txt')
@@ -537,16 +662,16 @@ cmd:option('-debug',false,'debug mode');
 cmd:option('-decreaseAfter',5*epoch_size)
 -- 5*epoch_size);
 
--- params = cmd:parse(arg)
--- main(params);
+params = cmd:parse(arg)
+main(params);
 
 -- cmd:option('-outDir','/home/SSD3/maheen-data/temp/tps_train_allKP_adam_noBad_bn/final_model','directory to write output');
 
--- cmd:option('-model',paths.concat(params.outDir,'final/model_all_final.dat'));
-cmd:option('-num_ctrl_pts',25,'num of training data to read');
-cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_64/intermediate/model_all_1365.dat')
-cmd:option('-out_dir_images','test_face');
+cmd:option('-model',paths.concat(params.outDir,'final/model_all_final.dat'));
+-- cmd:option('-num_ctrl_pts',25,'num of training data to read');
+-- cmd:option('-model','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_64/intermediate/model_all_1365.dat')
+cmd:option('-out_dir_images','test_images');
 cmd:option('-iterations',2,'num of iterations to run');
-cmd:option('-batchSize',50,'batch size');
+cmd:option('-batchSize',100,'batch size');
 params = cmd:parse(arg);
 test(params);
