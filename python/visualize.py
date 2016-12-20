@@ -1,7 +1,10 @@
 import matplotlib
 import numpy as np;
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
+matplotlib.use('PS') 
 import matplotlib.pyplot as plt;
+matplotlib.rcParams.update({'font.size': 22})
+from matplotlib.backends.backend_pdf import PdfPages
 import os;
 from PIL import Image,ImageDraw,ImageFont;
 import scipy.misc
@@ -179,6 +182,7 @@ def plotErrorBars(dict_to_plot,x_lim,y_lim,xlabel,y_label,title,out_file,margin=
 
 def plotSimple(xAndYs,out_file,title='',xlabel='',ylabel='',legend_entries=None,loc=0,outside=False,logscale=False):
     plt.title(title);
+    plt.grid(1);
     plt.xlabel(xlabel);
     plt.ylabel(ylabel);
     if logscale:
@@ -186,7 +190,7 @@ def plotSimple(xAndYs,out_file,title='',xlabel='',ylabel='',legend_entries=None,
     # assert len(xs)==len(ys)
     handles=[];
     for x,y in xAndYs:
-        handle,=plt.plot(x,y);
+        handle,=plt.plot(x,y,linewidth=5.0);
         handles.append(handle);
     if legend_entries is not None:
         if outside:
@@ -208,13 +212,16 @@ def writeHTMLForFolder(path_to_im,ext='jpg',height=300,width=300):
     writeHTML(out_file_html,im_paths,captions,height=height,width=width);
 
 
-def plotGroupBar(out_file,dict_vals,xtick_labels,legend_vals,colors,xlabel='',ylabel='',title='',width=0.25,ylim=None):
+def plotGroupBar(out_file,dict_vals,xtick_labels,legend_vals,colors,xlabel='',ylabel='',title='',width=0.25,ylim=None,loc=None):
+    if loc is None:
+        loc=2;
     # Setting the positions and width for the bars
     # if ylim is None:
     #     vals=dict_vals.values();
     #     vals=[v for v in val for val in values];
     #     ylim[
     plt.figure();
+    plt.grid(1);
     plt.title(title);
     plt.xlabel(xlabel);
     plt.ylabel(ylabel);
@@ -224,7 +231,7 @@ def plotGroupBar(out_file,dict_vals,xtick_labels,legend_vals,colors,xlabel='',yl
 
     pos = [pos_curr+(pos_curr*width) for pos_curr in pos]
     # pos[0]=0.0;
-    print pos
+    # print pos
     # width = 0.25
 
     # Plotting the bars
@@ -235,22 +242,30 @@ def plotGroupBar(out_file,dict_vals,xtick_labels,legend_vals,colors,xlabel='',yl
     # in position pos,
 
     for pos_idx,legend_val in enumerate(legend_vals):
-        print legend_val,[p + width*pos_idx for p in pos],dict_vals[legend_val]
+        # print legend_val,[p + width*pos_idx for p in pos],dict_vals[legend_val]
         plt.bar([p + width*pos_idx for p in pos],dict_vals[legend_val],width,color=colors[pos_idx],label=legend_val)
 
     ax = plt.gca()
     
     ax.set_xticks([p + len(legend_vals)/2.0 * width for p in pos])
-    print 'xticks' ,[p + len(legend_vals)/2.0 * width for p in pos]
-    ax.set_xticklabels(xtick_labels,rotation=45)
-    ax.legend( legend_vals,loc=0)
+    # print 'xticks' ,[p + len(legend_vals)/2.0 * width for p in pos]
+    ax.set_xticklabels(xtick_labels,rotation=0)
+    # ax.legend( legend_vals,loc=loc)
+    plt.legend(legend_vals,bbox_to_anchor=(0., 0, 1., 1), ncol=2);
+        # , mode="expand", borderaxespad=0.)
 # Setting the x-axis and y-axis limits
     # plt.xlim(xlim[0],xlim[1])
     if ylim is not None:
         plt.ylim(ylim )
 
 # Adding the legend and showing the plot
-    plt.savefig(out_file, bbox_inches='tight');
+    
+    # plt.gcf().subplots_adjust(top=0.9,bottom=0.15)
+    # if out_file.endswith('.pdf'):
+    #     with PdfPages(out_file) as pdf:
+    #         pdf.savefig()
+    # else:
+    plt.savefig(out_file,bbox_inches='tight');
     plt.close();  
 
 def plotBBox(img_path,bboxes,out_file,colors=None,labels=None):

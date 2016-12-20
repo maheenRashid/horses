@@ -40,6 +40,61 @@ do
         end
     end
     
+    function Visualize:saveBatchImagesWithKeypointsSensitive(im_all,pts_all,file_info,mean,scale,colors,pointSize,binary)
+        if mean~=nil then
+            for idx_rgb=1,3 do
+                im_all[{{},idx_rgb,{},{}}]=im_all[{{},idx_rgb,{},{}}]+mean[idx_rgb];
+            end
+        end
+
+        for idx_im=1,im_all:size(1) do
+            local out_file= file_info[1]..idx_im..file_info[2]
+            local im_new=self:drawKeyPointsSensitive(im_all[idx_im]:clone(),pts_all[idx_im],scale,colors,pointSize,binary[idx_im]);
+            image.save(out_file,im_new);
+        end
+    end
+
+
+    function Visualize:drawKeyPointsSensitive(im,keypoints,scale,colors,pointSize,binary)
+        assert (#keypoints:size()==2);
+        assert (keypoints:size(1)==2);
+        assert (im:size(1)==3);
+        
+        if not pointSize then
+            pointSize=math.max(torch.round(math.min(im:size(2),im:size(3))*0.02),1);
+        end
+        
+        if not colors then
+            colors={{255,0,0}};
+        end
+
+        if torch.max(im)>1 then
+            im=im/255;
+        end
+
+        if scale~=nil then
+            assert (#scale==2);
+            keypoints=keypoints-scale[1];
+            keypoints=torch.div(keypoints,scale[2]-scale[1]);
+            keypoints[{1,{}}]=keypoints[{1,{}}]*im:size(2);
+            keypoints[{2,{}}]=keypoints[{2,{}}]*im:size(3);
+        end
+
+        for label_idx=1,keypoints:size(2) do
+            if binary[label_idx]>0 and pointSize>0 then
+                x=keypoints[2][label_idx];
+                y=keypoints[1][label_idx];
+                local color_curr=colors[math.min(#colors,label_idx)];
+                im=self:plotPoint(im,{x,y},pointSize,color_curr);
+            end
+        end
+
+        return im;
+    end
+
+
+
+
 
     function Visualize:drawKeyPoints(im,keypoints,scale,colors,pointSize)
         assert (#keypoints:size()==2);
@@ -77,7 +132,7 @@ do
     end
 
     function Visualize:plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_plot) 
-        gnuplot.pngfigure(out_file_loss_plot)
+        local ff=gnuplot.pngfigure(out_file_loss_plot)
         -- print (out_file_loss_plot)
         local losses_tensor = torch.Tensor{losses_iter,losses};
         if #val_losses>0 then
@@ -92,6 +147,7 @@ do
         gnuplot.xlabel('Iterations');
         gnuplot.ylabel('Loss');
         gnuplot.plotflush();
+        gnuplot.closeall();
         -- gnuplot.pngfigure(out_file_loss_plot);
     end
 
@@ -108,6 +164,7 @@ do
         gnuplot.xlabel('Values');
         gnuplot.ylabel('Frequency');
         gnuplot.plotflush();
+        gnuplot.close();
         -- gnuplot.pngfigure(out_file_loss_plot);
     end
 

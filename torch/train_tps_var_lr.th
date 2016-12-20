@@ -392,6 +392,8 @@ function getOptimStateTotal(params,layer_pivot,logger)
 end
 
 function main(params) 
+    print ('setting_threads');
+    torch.setnumthreads(1);
     local out_dir=params.outDir
     if params.limit<0 then
         params.limit=nil;
@@ -615,12 +617,12 @@ local epoch_size=275;
 
 
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_25_1e-2_0','directory to write output');
-cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/affine_train_check','directory to write output');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/experiment_fake_random_neighbors/tps','directory to write output');
 
--- cmd:option('-num_ctrl_pts',25,'num of training data to read');
--- cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_eye.dat','model to load')
-cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withAffine.dat');
-cmd:option('affine',true);
+cmd:option('-num_ctrl_pts',25,'num of training data to read');
+cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_eye.dat','model to load')
+-- cmd:option('-model','/home/SSD3/maheen-data/horse_project/models/conv5_2fc_bn_normalXavier_128_50_withAffine.dat');
+-- cmd:option('affine',true);
 
 
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/tps_bn_clean_var_lr_64','directory to write output');
@@ -636,19 +638,29 @@ cmd:option('-testAfter',30,'num iterations after which to get validation loss');
 cmd:option('-dispAfter',1,'num iterations after which to display training loss');
 cmd:option('-dispPlotAfter',30,'num iterations after which to display training loss');
 
-cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
+cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/neighbor_data/small_datasets/matches_fake_random_5_3531_horse.txt');
+    -- '/home/SSD3/maheen-data/horse_project/files_for_sheepCode/horse_test_us_horse_minloss.txt');
+cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/neighbor_data/small_datasets/matches_fake_random_5_3531_face_noIm.txt');
+cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt');
+    -- '/home/SSD3/maheen-data/horse_project/files_for_sheepCode/horse_train_us_horse.txt');
+cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt');
+    -- '/home/SSD3/maheen-data/horse_project/files_for_sheepCode/horse_train_us_face_noIm.txt');
+
+-- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
     -- '/home/SSD3/maheen-data/horse_project/data_check/sheep/matches_5_sheep_test_allKP.txt');
     -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
-cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt')
+
+    -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt')
     -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_sheep_test_allKP_noIm.txt');
     -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt')
 -- cmd:option('-horse_data_path','temp');
     -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_full.txt')
-cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/sheep/matches_5_sheep_train_allKP.txt');
+
+    -- '/home/SSD3/maheen-data/horse_project/data_check/sheep/matches_5_sheep_train_allKP.txt');
     -- 'temp');
     -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_train_allKP_minLoss_noIm_clean_full.txt')
 
-cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_sheep_train_allKP_noIm.txt');
+    -- '/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_sheep_train_allKP_noIm.txt');
 
 cmd:option('learningRate', 1e-3)
 cmd:option('learningRateDecay',5e-6)

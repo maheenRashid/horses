@@ -20,14 +20,21 @@ local model=torch.load(in_file);
 print (model);
 model=model:cuda();
 
-local data_path='/home/SSD3/maheen-data/horse_project/data_check/horse/pairs_all.txt';
-local out_dir='/home/SSD3/maheen-data/horse_project/sanityCheckHorse/fc6';
+local data_path='/home/SSD3/maheen-data/horse_project/neighbor_data/small_datasets/matches_5_3531_horse_minloss.txt';
+local out_dir='/home/SSD3/maheen-data/horse_project/sanityCheckHorse_cvpr/train';
+paths.mkdir(out_dir);
+local iterations=28;
+
+-- local data_path='/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt';
+-- local out_dir='/home/SSD3/maheen-data/horse_project/sanityCheckHorse_cvpr/test';
+-- paths.mkdir(out_dir);
+-- local iterations=2;
+-- /home/SSD3/maheen-data/horse_project/sanityCheckHorse/fc6';
 
 local mean_im_path = '/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_mean.png';
 local std_im_path = '/home/SSD3/maheen-data/data_face_network/aflw_cvpr_40_std.png';
 
 local batchSize=128;
-local iterations=30;
 local fc6_num=20;
 local data_params={file_path=data_path,
 					batch_size=batchSize,

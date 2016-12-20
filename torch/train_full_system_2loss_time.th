@@ -1,13 +1,12 @@
 require 'image'
 npy4th = require 'npy4th'
-require 'data_aflw';
-require 'data_horseHuman_xiuye';
+require 'data_aflw_optimizing';
+require 'data_horseHuman_xiuye_optimizing';
 require 'cunn'
 require 'cudnn'
 require 'nn';
 require 'optim'
 require 'stn'
-npy4th=require 'npy4th';
 require 'torchx';
 require 'gnuplot';
 dump=require 'dump';
@@ -47,7 +46,7 @@ function getOptimStateTotal(params,layer_pivot,logger)
                 epsilon=params.epsilon };
 
         str=str..' '..optimState_curr.learningRate;
-        print (str);
+        -- print (str);
         logger:writeString(dump.tostring(str)..'\n');
         optimStateTotal[#optimStateTotal+1]=optimState_curr;
     end
@@ -117,7 +116,7 @@ function getDownSampleGrid(batchSize)
     return out_grids_new;
 end
 
-function doTheForward(batch_inputs,batch_targets,saveImage,padTPS,mean_im,std_im)
+function doTheForward(batch_inputs,batch_targets,saveImage,padTPS)
     
     local batch_inputs_view;
     if saveImage then
@@ -151,11 +150,7 @@ function doTheForward(batch_inputs,batch_targets,saveImage,padTPS,mean_im,std_im
         midoutputs_view=midoutputs:double():clone();
     end
 
-    if mean_im then
-        midoutputs=tps_helper:switchMeans_withMeanStd(midoutputs,td.params.imagenet_mean,mean_im,std_im)
-    else
-        midoutputs=tps_helper:switchMeans(midoutputs,td.params.imagenet_mean,td.mean_im,td.std_im)
-    end
+    midoutputs=tps_helper:switchMeans(midoutputs,td.params.imagenet_mean,td.mean_im,td.std_im)
     -- print ('mean',torch.mean(midoutputs));
 
     local outputs=net:get(2):forward(midoutputs);
@@ -288,14 +283,23 @@ function doTheUpdate(optimMethod,optimStateTotal,padTPS,full_back_prop)
 end
 
 
-function doTheUpdateDualLoss(optimMethod,optimStateTotal,padTPS,full_back_prop,affine_flag,mean_im,std_im)
+function doTheUpdateDualLoss(optimMethod,optimStateTotal,padTPS,full_back_prop,affine_flag)
     
+    local t=os.clock()
     td:getTrainingData();
+
+    print ('td:getTrainingData():',os.clock()-t);
+
+    local t=os.clock()
     td.training_set_horse.data=td.training_set_horse.data:cuda();
     td.training_set_human.label=td.training_set_human.label:cuda();
     td.training_set_horse.label=td.training_set_horse.label:cuda();
-
+    print ('making cuda:',os.clock()-t);
+    
+    local t=os.clock()
     local horse_labels,human_labels,batch_inputs,_,data_idx=td:getBatchPoints(true)
+    print ('td:getBatchPoints:',os.clock()-t);
+
     local batch_targets_final=torch.zeros(#horse_labels,
                                         td.training_set_horse.label:size(2),
                                         td.training_set_horse.label:size(3)):type(td.training_set_horse.label:type())
@@ -305,9 +309,10 @@ function doTheUpdateDualLoss(optimMethod,optimStateTotal,padTPS,full_back_prop,a
 
     
     net:zeroGradParameters();
+    local t=os.clock()
     local loss,dloss,midoutputs,inputs,tps_layer,tps_output,temp,bil_input=
-                                            doTheForward(batch_inputs,batch_targets_final,nil,padTPS,mean_im,std_im);
-
+                                            doTheForward(batch_inputs,batch_targets_final,nil,padTPS);
+    print ('doTheForward():',os.clock()-t);
 
     local grad_mid=net:get(2):backward(midoutputs, dloss);
 
@@ -331,7 +336,9 @@ function doTheUpdateDualLoss(optimMethod,optimStateTotal,padTPS,full_back_prop,a
         if params.dual then
             local gt_output;
             if affine_flag then
+                local t=os.clock()
                 local gt_params=tps_helper:getGTParams(human_labels,horse_labels);
+                print ('getGTParams:',os.clock()-t);                
                 -- print (tps_layer);
                 gt_output=tps_layer:clone():forward(gt_params)
                 -- :get(1):get(2).output;
@@ -339,7 +346,9 @@ function doTheUpdateDualLoss(optimMethod,optimStateTotal,padTPS,full_back_prop,a
             else
                 gt_output = tps_layer:getGTOutput(human_labels,horse_labels);
             end
+            -- local -- t=os.clock()
             local batch_targets = gt_output:clone();            
+            -- print ('getGTParams:',os.clock()-t);                
             local lossD_mid=loss_helper:getLossD_L2(net:get(1):get(1):get(2).output,batch_targets);
             loss_mid=loss_helper:getLoss_L2(net:get(1):get(1):get(2).output,batch_targets);
             net:get(1):get(1):get(2):backward(inputs,lossD_mid);
@@ -476,7 +485,6 @@ function test(params)
 end
 
 function main(params) 
-    print ('setting_threads');
     torch.setnumthreads(1);
 	local data_path=params.data_path;
 	local out_dir=params.outDir
@@ -522,7 +530,7 @@ function main(params)
     -- local str_curr;
     -- str_curr=
     logger:writeString(dump.tostring(params)..'\n');
-    print (params);
+    -- print (params);
 
     cutorch.setDevice(params.gpu);
 
@@ -575,7 +583,7 @@ function main(params)
     logger:writeString(dump.tostring('loading done')..'\n');
     print ('loading done');
     logger:writeString(dump.tostring(optimState)..'\n');
-    print (optimState)
+    -- print (optimState)
 
 
     local data_params={file_path_horse=params.horse_data_path,
@@ -599,11 +607,6 @@ function main(params)
 	end
     
 
-    local mean_im=td.mean_im:view(1,td.mean_im:size(1),td.mean_im:size(2),td.mean_im:size(3));
-    local std_im=td.std_im:view(1,td.std_im:size(1),td.std_im:size(2),td.std_im:size(3));
-    mean_im=torch.repeatTensor(mean_im,td.batch_size,1,1,1):cuda();
-    std_im=torch.repeatTensor(std_im,td.batch_size,1,1,1):cuda();
-
     local losses = {};
     local losses_mid = {};
     local losses_iter = {};
@@ -625,7 +628,10 @@ function main(params)
         end
 
         -- local train_loss = doTheUpdate(optimMethod,optimStateTotal,params.padTPS,params.full_back_prop);
-        local train_loss,loss_mid = doTheUpdateDualLoss(optimMethod,optimStateTotal,params.padTPS,params.full_back_prop,params.affine,mean_im,std_im);
+        local t=os.clock();
+        local train_loss,loss_mid = doTheUpdateDualLoss(optimMethod,optimStateTotal,params.padTPS,params.full_back_prop,params.affine);
+        print (os.clock()-t);
+
         if not loss_mid then
             loss_mid=train_loss;
         end
@@ -673,7 +679,7 @@ function main(params)
 			local batch_inputs=vd.training_set.data;
 			local batch_targets=vd.training_set.label;
 		    
-            local loss = doTheForward(batch_inputs,batch_targets,nil,params.padTPS,mean_im,std_im);
+            local loss = doTheForward(batch_inputs,batch_targets,nil,params.padTPS);
                 -- ,paths.concat(out_dir_debug,''..i..'_'),params.padTPS);
             -- 
                 -- 
@@ -714,16 +720,16 @@ function main(params)
 	end
 
     -- save final model
-    torch.save(out_file_net,net);
+    -- torch.save(out_file_net,net);
 
-    npy4th.savenpy(out_file_loss, torch.Tensor(losses))
+    -- npy4th.savenpy(out_file_loss, torch.Tensor(losses))
     
-    if params.testAfter>0 and #val_losses>0 then
-        npy4th.savenpy(out_file_loss_val, torch.Tensor(val_losses))
-    end
-    visualize:plotLossFigure(losses,losses_iter,{},{},out_file_loss_plot);
-    visualize:plotLossFigure(losses_mid,losses_iter,{},{},out_file_loss_mid_plot);
-    visualize:plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_val_plot);
+    -- if params.testAfter>0 and #val_losses>0 then
+    --     npy4th.savenpy(out_file_loss_val, torch.Tensor(val_losses))
+    -- end
+    -- visualize:plotLossFigure(losses,losses_iter,{},{},out_file_loss_plot);
+    -- visualize:plotLossFigure(losses_mid,losses_iter,{},{},out_file_loss_mid_plot);
+    -- visualize:plotLossFigure(losses,losses_iter,val_losses,val_losses_iter,out_file_loss_val_plot);
 end
 
 
@@ -734,11 +740,10 @@ cmd:text('Train Full network')
 cmd:text()
 cmd:text('Options')
 
-local epoch_size=56;
+local epoch_size=1;
 -- 7;
 
-cmd:option('-tps_model_path','temp');
-    -- '/home/SSD3/maheen-data/horse_project/full_system_horse_data_5kp/tps/final/model_all_final.dat');
+cmd:option('-tps_model_path','/home/SSD3/maheen-data/horse_project/full_system_sheep_data_5kp/tps/final/model_all_final.dat');
     -- 'temp');
 -- cmd:option('affine',true);
 
@@ -749,7 +754,7 @@ cmd:option('-tps_model_path','temp');
 cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat');
 
 
-cmd:option('-full_model_flag',false);
+-- cmd:option('-full_model_flag',false);
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_scratch_1e-2_1_10','directory to write output');
 
 -- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_scratch_1e-2_1_10/final/model_all_final.dat');
@@ -763,8 +768,8 @@ cmd:option('-full_model_flag',false);
 
 -- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100/final/model_all_final.dat');
 -- cmd:option('-full_model_flag',true);
-cmd:option('-outDir','temp');
-    -- '/home/SSD3/maheen-data/horse_project/full_system_horse_data_5kp/full_system');
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/debug_time');
+    -- full_system_horse_data_5kp/full_system');
     -- '/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100_withGray_fullback_padded','directory to write output');
 cmd:option('-full_back_prop',true,'whether to back prop through spatial net as well');
 
@@ -772,8 +777,8 @@ cmd:option('padTPS',false,'no gray tps');
 
 
 
--- cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100_withGray_halfback/final/model_all_final.dat');
--- cmd:option('-full_model_flag',true);
+cmd:option('-face_detection_model_path','/home/SSD3/maheen-data/horse_project/full_system_sheep_data_5kp/full_system/final/model_all_final.dat');
+cmd:option('-full_model_flag',true);
 -- cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/ft_horse_2loss_25_1e-2_100_withGray_halfback/resume_1e-3','directory to write output');
 -- cmd:option('-full_back_prop',false,'whether to back prop through spatial net as well');
 -- cmd:option('padTPS',false,'no gray tps');
@@ -784,7 +789,7 @@ cmd:option('padTPS',false,'no gray tps');
 -- cmd:option('padTPS',false,'no gray tps');
 
 
-cmd:option('learningRate', 1e-2)
+cmd:option('learningRate', 1e-3)
 cmd:option('multiplierBottom',1/100);
 cmd:option('multiplierMid',1/10);
 
@@ -794,27 +799,24 @@ cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_22
 cmd:option('-full_size',true,'true when on 224');
 
 cmd:option('-limit',-1,'num of training data to read');
-cmd:option('-iterations',150*epoch_size,'num of iterations to run');
+cmd:option('-iterations',5*epoch_size,'num of iterations to run');
 cmd:option('-saveAfter',30*epoch_size,'num of iterations after which to save model');
 cmd:option('-batchSize',64,'batch size');
 cmd:option('-testAfter',30,'num iterations after which to get validation loss');
 cmd:option('-dispAfter',1,'num iterations after which to display training loss');
-cmd:option('-dispPlotAfter',120,'num iterations after which to display training loss');
+cmd:option('-dispPlotAfter',30,'num iterations after which to display training loss');
 cmd:option('-decreaseAfter',50*epoch_size,'num of iterations to run');
 
 cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
 cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
 
 
-cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
-    -- '/home/SSD3/maheen-data/horse_project/files_for_sheepCode/horse_test_us_horse_minloss.txt');
+cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/files_for_sheepCode/sheep_test_us_sheep_minloss.txt');
     -- 'temp');
     -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
 -- cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean_padded.txt')
-cmd:option('-horse_data_path','temp');
-    -- '/home/SSD3/maheen-data/horse_project/files_for_sheepCode/horse_train_us_horse_minloss.txt');
-cmd:option('-human_data_path','temp');
-    -- '/home/SSD3/maheen-data/horse_project/files_for_sheepCode/horse_train_us_face_noIm_minloss.txt');
+cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/files_for_sheepCode/sheep_train_us_sheep_minloss.txt');
+cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/files_for_sheepCode/sheep_train_us_face_noIm_minloss.txt');
 
     -- 'temp');
     -- '/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_train_allKP_minLoss_clean_padded.txt')
@@ -837,12 +839,13 @@ cmd:option('-gpu',1,'gpu to run the training on');
 params = cmd:parse(arg)
 main(params);
 
-cmd:option('-full_model_path',paths.concat(params.outDir,'final/model_all_final.dat'),'full model path for testing');
-    -- ,'temp');
-cmd:option('-iterations',2,'num of iterations to run');
-cmd:option('-batchSize',100,'batch size');
-cmd:option('-outDirTest',paths.concat(params.outDir,'test_images'));
-    -- 'temp');
-params = cmd:parse(arg)
-print (params.full_model_path);
-test(params)
+-- cmd:option('-full_model_path',params.face_detection_model_path);
+--     -- paths.concat(params.outDir,'final/model_all_final.dat'),'full model path for testing');
+--     -- ,'temp');
+-- cmd:option('-iterations',2,'num of iterations to run');
+-- cmd:option('-batchSize',100,'batch size');
+-- cmd:option('-outDirTest',paths.concat(params.outDir,'test_images'));
+--     -- 'temp');
+-- params = cmd:parse(arg)
+-- print (params.full_model_path);
+-- test(params)

@@ -1,0 +1,70 @@
+require 'image'
+npy4th = require 'npy4th'
+require 'data_aflw_optimizing';
+visualize=require 'visualize';
+require 'gnuplot';
+
+function main(params)
+	if params.limit<0 then
+		params.limit=nil;
+	end
+
+	local data_params={file_path=params.val_data_path,
+	                batch_size=params.batchSize,
+	                mean_file=params.mean_im_path,
+	                std_file=params.std_im_path,
+	                augmentation=false,
+	                limit=params.limit,
+	                input_size={224,224},
+	                imagenet_mean=true};
+
+
+	td=data(data_params);
+	t=os.clock()
+	td:getTrainingData();
+	print ('elapsed time to get training data:',os.clock()-t);
+
+	local x={};
+	for i=1,100 do
+		x[#x+1]=i;
+	end
+		-- torch.zeros(100,1);
+	local out_file_loss_plot='/home/SSD3/maheen-data/temp/temp.png';
+	for i=1,1000 do
+		print (i);
+		visualize:plotLossFigure(x,x,x,x,out_file_loss_plot);
+	end
+
+end
+
+
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text('Train Full network')
+cmd:text()
+cmd:text('Options')
+
+local epoch_size=15;
+
+cmd:option('-mean_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_mean.png');
+cmd:option('-std_im_path','/home/SSD3/maheen-data/data_face_network/aflw_cvpr_224_std.png');
+cmd:option('-batchSize',64,'batch size');
+cmd:option('-limit',-1,'num of training data to read');
+cmd:option('-val_data_path','/home/SSD3/maheen-data/horse_project/files_for_sheepCode/horse_train_us_horse.txt');
+cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/files_for_sheepCode/horse_train_us_horse_minloss.txt');
+cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/files_for_sheepCode/horse_train_us_face_noIm_minloss.txt');
+
+cmd:option('augmentation' , true);
+
+params = cmd:parse(arg)
+-- main(params);
+local d = torch.Tensor(20000):uniform()
+
+for i=1,2000 do
+	print (i);
+  local ff=gnuplot.pngfigure('/home/SSD3/maheen-data/temp/temp.png')
+  gnuplot.plot(d)
+  gnuplot.plotflush()
+  -- gnuplot.close(ff);
+end
+

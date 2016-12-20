@@ -36,46 +36,47 @@ end
 
 
 
-path_to_vanilla='/home/SSD3/maheen-data/horse_project/vanilla/vanilla_original.dat'
+path_to_vanilla='/home/SSD3/maheen-data/horse_project/vanilla_train_face_big/intermediate/model_all_16762.dat'
+-- '/home/SSD3/maheen-data/horse_project/vanilla/vanilla_original.dat'
 out_file='/home/SSD3/maheen-data/horse_project/vanilla/vanilla_scratch_bn_large.dat';
 
 model=torch.load(path_to_vanilla);
 print (model);
 
-model:insert(nn.BatchNormalization(100),18);
-model:insert(nn.SpatialBatchNormalization(64),14);
-model:insert(nn.SpatialBatchNormalization(64),10);
-model:insert(nn.SpatialBatchNormalization(48),6);
-model:insert(nn.SpatialBatchNormalization(16),2);
+-- model:insert(nn.BatchNormalization(100),18);
+-- model:insert(nn.SpatialBatchNormalization(64),14);
+-- model:insert(nn.SpatialBatchNormalization(64),10);
+-- model:insert(nn.SpatialBatchNormalization(48),6);
+-- model:insert(nn.SpatialBatchNormalization(16),2);
 
-for i=1,6 do
-    model:remove(26-i);
-end
-model:insert(nn.SpatialMaxPooling(3,3,2,2,1,1));
-model:insert(nn.SpatialConvolution(64,16,2,2));
-model:insert(nn.SpatialBatchNormalization(16));
-model:insert(nn.Tanh());
-model:insert(nn.Abs());
-model:insert(nn.View(2304));
+-- for i=1,6 do
+--     model:remove(26-i);
+-- end
+-- model:insert(nn.SpatialMaxPooling(3,3,2,2,1,1));
+-- model:insert(nn.SpatialConvolution(64,16,2,2));
+-- model:insert(nn.SpatialBatchNormalization(16));
+-- model:insert(nn.Tanh());
+-- model:insert(nn.Abs());
+-- model:insert(nn.View(2304));
 
-model:insert(nn.Linear(2304,100));
-model:insert(nn.BatchNormalization(100));
-model:insert(nn.Tanh());
-model:insert(nn.Abs());
-model:insert(nn.Linear(100,10));
+-- model:insert(nn.Linear(2304,100));
+-- model:insert(nn.BatchNormalization(100));
+-- model:insert(nn.Tanh());
+-- model:insert(nn.Abs());
+-- model:insert(nn.Linear(100,10));
 
-model = makeXavierGaussian(model);
+-- model = makeXavierGaussian(model);
 
-cudnn.convert(model,cudnn);
-print (model);
+-- cudnn.convert(model,cudnn);
+-- print (model);
 
-torch.save(out_file,model);
+-- torch.save(out_file,model);
 
-model=model:cuda();
+-- model=model:cuda();
 
-local input=torch.rand(torch.LongStorage{4,3,224,224});
-local output=model:forward(input:cuda());
-print (output:size());
+-- local input=torch.rand(torch.LongStorage{4,3,224,224});
+-- local output=model:forward(input:cuda());
+-- print (output:size());
 
 -- for layer_num=1,#model do
 --     print (model:get(layer_num));

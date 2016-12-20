@@ -161,8 +161,25 @@ function doTheForwardEuclidean(batch_inputs,batch_targets,human_labels,horse_lab
         local colors={{255,0,0},{255,255,0},{0,0,255},{0,255,0},{255,0,255}};
    
         t_pts_view=t_pts_view:transpose(2,3)
-        visualize:saveBatchImagesWithKeypoints(batch_inputs_view,t_pts_view,{saveImage,'_org.jpg'},td.params.mean,{-1,1},colors);        
-        visualize:saveBatchImagesWithKeypoints(midoutputs_view,outputs_view:transpose(2,3),{saveImage,'.jpg'},td.params.mean,{-1,1},colors);
+        
+        for im_num=1,t_pts:size(1) do 
+            local out_file_gt=saveImage..im_num..'_gt_pts.npy';
+            local out_file_pred=saveImage..im_num..'_pred_pts.npy';
+
+            local pred_output=t_pts[im_num]:clone():double();
+            local gt_output=batch_targets[im_num]:clone():double();
+            pred_output=pred_output:view(pred_output:size(1)/2,2);
+            npy4th.savenpy(out_file_gt,gt_output);
+            npy4th.savenpy(out_file_pred,pred_output);
+
+        end
+
+        local binary=batch_targets[{{},{},3}]:clone();
+        visualize:saveBatchImagesWithKeypointsSensitive(batch_inputs_view,t_pts_view,{saveImage,'_org.jpg'},td.params.mean,{-1,1},colors,pointSize,binary);
+        visualize:saveBatchImagesWithKeypointsSensitive(midoutputs_view,outputs_view:transpose(2,3),{saveImage,'.jpg'},td.params.mean,{-1,1},colors,pointSize,binary);
+
+        visualize:saveBatchImagesWithKeypointsSensitive(batch_inputs_view,t_pts_view,{saveImage,'_org_nokp.jpg'},nil,{-1,1},colors,-1,binary);
+        visualize:saveBatchImagesWithKeypointsSensitive(midoutputs_view,outputs_view:transpose(2,3),{saveImage,'_nokp.jpg'},nil,{-1,1},colors,-1,binary);
 
     end
 
@@ -189,7 +206,7 @@ function test(params)
     local logger=torch.DiskFile(out_file_log,'w');
 
     logger:writeString(dump.tostring(params)..'\n');
-    -- print (params);
+    print (params);
 
     cutorch.setDevice(params.gpu);
 
@@ -198,17 +215,17 @@ function test(params)
     local size_out=224;
 
     logger:writeString(dump.tostring('loading network')..'\n');
-    -- print ('loading network');
+    print ('loading network');
 
     net = torch.load(params.face_detection_model_path);
     ds_net=setUpGTNets(params.full_size);
     tps=nn.TPSGridGeneratorBHWD(num_ctrl_pts,size_out,size_out);
     
     logger:writeString(dump.tostring('done loading network')..'\n');
-    -- print ('done loading network');
+    print ('done loading network');
     
-    -- print (net);
-    -- print (ds_net)
+    print (net);
+    print (ds_net)
 
     logger:writeString(dump.tostring('making cuda')..'\n');
     -- print ('making cuda');
@@ -499,8 +516,8 @@ cmd:option('-testAfter',30,'num iterations after which to get validation loss');
 cmd:option('-dispAfter',1,'num iterations after which to display training loss');
 cmd:option('-dispPlotAfter',30,'num iterations after which to display training loss');
 
-cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean.txt')
-cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean.txt')
+cmd:option('-val_horse_data_path','/home/SSD3/maheen-data/horse_project/data_check/horse/matches_5_val_allKP_minLoss_clean_noDuplicates.txt')
+cmd:option('-val_human_data_path','/home/SSD3/maheen-data/horse_project/data_check/aflw/matches_5_val_allKP_minLoss_noIm_clean_noDuplicates.txt')
 
 cmd:option('-horse_data_path','/home/SSD3/maheen-data/horse_project/neighbor_data/small_datasets/matches_5_3531_horse_minloss.txt')
 cmd:option('-human_data_path','/home/SSD3/maheen-data/horse_project/neighbor_data/small_datasets/matches_5_3531_face_noIm_minloss.txt')
@@ -516,7 +533,7 @@ cmd:option('-debug',false,'debug mode');
 
 cmd:option('decreaseAfter',50*epoch_size);
 params = cmd:parse(arg)
-main(params);
+-- main(params);
 
 -- cmd:option('-face_detection_model_path',paths.concat(params.outDir,'intermediate/model_all_1680.dat'));
 -- cmd:option('-outDir',paths.concat(params.outDir,'1680'),'directory to write output');
@@ -524,7 +541,9 @@ main(params);
 -- cmd:option('-face_detection_model_path',paths.concat(params.outDir,'intermediate/model_all_1064.dat'));
 -- cmd:option('-outDir',paths.concat(params.outDir,'1064'),'directory to write output');
 
-cmd:option('-face_detection_model_path',paths.concat(params.outDir,'final/model_all_final.dat'));
+cmd:option('-face_detection_model_path','/media/ext_disk/maheen-data/vision1/full_system_small_data/matches_5_3531_horse_minloss_gtwarp/final/model_all_final.dat');
+    -- paths.concat(params.outDir,'final/model_all_final.dat'));
+cmd:option('-outDir','/home/SSD3/maheen-data/horse_project/cvpr_figs_noDuplicates/gt_warp/test_images','directory to write output');
 -- cmd:option('-outDir',paths.concat(params.outDir,'test_images'),'directory to write output');
 
 -- cmd:option('-val_horse_data_path',params.horse_data_path)
